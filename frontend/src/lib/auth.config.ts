@@ -8,6 +8,7 @@ export const authConfig: NextAuthConfig = {
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID!,
       clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking: true,
       // Store login (username) as name so session.user.name = "adityaadpandey", not "Aditya Pandey"
       profile(profile) {

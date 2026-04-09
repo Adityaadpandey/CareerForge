@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
   let body: {
     leetcodeHandle?: string | null;
     codeforcesHandle?: string | null;
+    linkedinUrl?: string | null;
     targetRole?: string;
     dreamCompanies?: string[];
     timelineWeeks?: number;
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
 
   const leetcodeHandle = body.leetcodeHandle || null;
   const codeforcesHandle = body.codeforcesHandle || null;
+  const linkedinUrl = body.linkedinUrl || null;
   const targetRole = body.targetRole || "SDE";
   const timelineWeeks = Number(body.timelineWeeks) || 12;
   const hoursPerWeek = Number(body.hoursPerWeek) || 10;
@@ -119,6 +121,46 @@ export async function POST(req: NextRequest) {
         enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: leetcodeHandle })
       );
     }
+
+    // LinkedIn: URL fallback path
+    if (linkedinUrl) {
+      await prisma.studentProfile.update({
+        where: { id: profile.id },
+        data: { linkedinUrl },
+      });
+      await prisma.platformConnection.upsert({
+        where: { studentProfileId_platform: { studentProfileId: profile.id, platform: "LINKEDIN" } },
+        create: { studentProfileId: profile.id, platform: "LINKEDIN", syncStatus: "PENDING" },
+        update: { syncStatus: "PENDING", errorMessage: null },
+      });
+      ingestionJobs.push(
+        enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedin_url: linkedinUrl })
+      );
+    } else {
+      // LinkedIn: OAuth path — check if user linked LinkedIn account during onboarding
+      const linkedinAccount = await prisma.account.findFirst({
+        where: { userId: session.user.id, provider: "linkedin" },
+        select: { access_token: true, providerAccountId: true },
+      });
+      if (linkedinAccount?.access_token) {
+        await prisma.platformConnection.upsert({
+          where: { studentProfileId_platform: { studentProfileId: profile.id, platform: "LINKEDIN" } },
+          create: { studentProfileId: profile.id, platform: "LINKEDIN", syncStatus: "PENDING" },
+          update: { syncStatus: "PENDING", errorMessage: null },
+        });
+        ingestionJobs.push(
+          enqueueIngestion({
+            type: "LINKEDIN",
+            studentProfileId: profile.id,
+            oauth_data: {
+              access_token: linkedinAccount.access_token,
+              provider_account_id: linkedinAccount.providerAccountId,
+            },
+          })
+        );
+      }
+    }
+
     // Set Redis counter so the worker knows how many ingestion jobs to wait for
     await redis.set(`pending_ingestion:${profile.id}`, ingestionJobs.length, "EX", 3600);
     await Promise.allSettled(ingestionJobs);

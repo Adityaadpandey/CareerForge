@@ -5,7 +5,7 @@ import axios from "axios";
 import Link from "next/link";
 import { use } from "react";
 import {
-  ArrowLeft, Github, Code2, FileText, Linkedin,
+  ArrowLeft, GitBranch, Code2, FileText, Link2,
   CheckCircle2, Circle, Clock, XCircle, Flame, TrendingUp,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
@@ -65,10 +65,10 @@ const SEGMENT_COLORS: Record<string, string> = {
 };
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  GITHUB: <Github className="w-4 h-4" />,
+  GITHUB: <GitBranch className="w-4 h-4" />,
   LEETCODE: <Code2 className="w-4 h-4" />,
   RESUME: <FileText className="w-4 h-4" />,
-  LINKEDIN: <Linkedin className="w-4 h-4" />,
+  LINKEDIN: <Link2 className="w-4 h-4" />,
 };
 
 function SyncBadge({ status }: { status: string }) {
