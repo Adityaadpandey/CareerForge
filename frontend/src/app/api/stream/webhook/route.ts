@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   const eventType = payload?.type as string;
 
   if (eventType === "call.session_started") {
-    const event = payload as CallSessionStartedEvent;
+    const event = payload as unknown as CallSessionStartedEvent;
     const interviewId = event.call.custom?.interviewId as string;
     const interviewType = (event.call.custom?.interviewType as string) ?? "TECHNICAL";
 
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     });
 
   } else if (eventType === "call.session_participant_left") {
-    const event = payload as CallSessionParticipantLeftEvent;
+    const event = payload as unknown as CallSessionParticipantLeftEvent;
     const interviewId = event.call_cid.split(":")[1];
 
     if (!interviewId) {
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     await call.end();
 
   } else if (eventType === "call.session_ended") {
-    const event = payload as CallEndedEvent;
+    const event = payload as unknown as CallEndedEvent;
     const interviewId = event.call.custom?.interviewId as string;
 
     if (!interviewId) {
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     });
 
   } else if (eventType === "call.transcription_ready") {
-    const event = payload as CallTranscriptionReadyEvent;
+    const event = payload as unknown as CallTranscriptionReadyEvent;
     const interviewId = event.call_cid.split(":")[1];
 
     const interview = await prisma.interviewSession.update({
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
 
   } else if (eventType === "call.recording_ready") {
-    const event = payload as CallRecordingReadyEvent;
+    const event = payload as unknown as CallRecordingReadyEvent;
     const interviewId = event.call_cid.split(":")[1];
 
     await prisma.interviewSession.update({
