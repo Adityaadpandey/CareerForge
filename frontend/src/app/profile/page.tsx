@@ -57,6 +57,7 @@ type Profile = {
     syncStatus: string;
     lastSyncedAt: string | null;
   }>;
+
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -80,6 +81,36 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   PENDING: <Clock className="w-3.5 h-3.5 text-zinc-500" />,
   FAILED: <XCircle className="w-3.5 h-3.5 text-red-400" />,
 };
+
+const SYNC_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function SyncButton({
+  lastSyncedAt,
+  isPending,
+  onSync,
+}: {
+  lastSyncedAt: string | null;
+  isPending: boolean;
+  onSync: () => void;
+}) {
+  const cooled = lastSyncedAt
+    ? Date.now() - new Date(lastSyncedAt).getTime() < SYNC_COOLDOWN_MS
+    : false;
+  const hrsLeft = cooled && lastSyncedAt
+    ? Math.ceil((SYNC_COOLDOWN_MS - (Date.now() - new Date(lastSyncedAt).getTime())) / 3_600_000)
+    : 0;
+
+  return (
+    <button
+      onClick={onSync}
+      disabled={isPending || cooled}
+      title={cooled ? `Next sync available in ${hrsLeft}h` : "Re-sync"}
+      className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      <RefreshCw className="w-3.5 h-3.5" />
+    </button>
+  );
+}
 
 export default function ProfilePage() {
   const { data: session } = useSession();
@@ -158,12 +189,15 @@ export default function ProfilePage() {
 
   const syncMutation = useMutation({
     mutationFn: (platform: string) =>
-      axios.post("/api/onboarding/connect", { platform }),
+      axios.post("/api/profile/sync", { platform }),
     onSuccess: (_, platform) => {
       toast.success(`${PLATFORM_LABELS[platform]} sync queued`);
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
-    onError: () => toast.error("Failed to queue sync"),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg ?? "Failed to queue sync");
+    },
   });
 
   const linkedinUrlMutation = useMutation({
@@ -546,13 +580,11 @@ export default function ProfilePage() {
                         {resumeMutation.isPending ? "Uploading…" : "Upload PDF"}
                       </button>
                     ) : (
-                      <button
-                        onClick={() => syncMutation.mutate(platform)}
-                        disabled={syncMutation.isPending}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-colors disabled:opacity-40"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
+                      <SyncButton
+                        lastSyncedAt={conn?.lastSyncedAt ?? null}
+                        isPending={syncMutation.isPending}
+                        onSync={() => syncMutation.mutate(platform)}
+                      />
                     )}
                   </div>
                 </div>

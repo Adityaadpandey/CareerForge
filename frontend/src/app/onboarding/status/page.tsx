@@ -14,6 +14,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   GITHUB: "GitHub",
   LEETCODE: "LeetCode",
   CODEFORCES: "Codeforces",
+  LINKEDIN: "LinkedIn",
   RESUME: "Resume",
 };
 

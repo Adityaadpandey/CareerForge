@@ -73,7 +73,6 @@ async def llm_json(
             model=model,
             messages=messages,
             response_format={"type": "json_object"},
-            temperature=temperature,
         )
         raw = res.choices[0].message.content or "{}"
         result = json.loads(raw)

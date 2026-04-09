@@ -89,14 +89,20 @@ async def ingest_linkedin(
     """
     pool = await get_pool()
 
-    await pool.execute(
+    row = await pool.fetchrow(
         """
         UPDATE "PlatformConnection"
         SET "syncStatus" = 'SYNCING', "lastSyncedAt" = NOW()
-        WHERE "studentProfileId" = $1 AND platform = 'LINKEDIN'
+        WHERE "studentProfileId" = $1
+          AND platform = 'LINKEDIN'
+          AND "syncStatus" != 'SYNCING'
+        RETURNING id
         """,
         student_profile_id,
     )
+    if row is None:
+        logger.warning(f"[linkedin] Skipping duplicate — already SYNCING for {student_profile_id}")
+        return {}
 
     try:
         # ── Step 1: Build OAuth context ─────────────────────────────────────

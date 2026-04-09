@@ -59,14 +59,20 @@ async def _fetch_leetcode_profile(handle: str) -> dict:
 async def ingest_leetcode(student_profile_id: str, handle: str) -> dict:
     pool = await get_pool()
 
-    await pool.execute(
+    row = await pool.fetchrow(
         """
         UPDATE "PlatformConnection"
         SET "syncStatus" = 'SYNCING', "lastSyncedAt" = NOW()
-        WHERE "studentProfileId" = $1 AND platform = 'LEETCODE'
+        WHERE "studentProfileId" = $1
+          AND platform = 'LEETCODE'
+          AND "syncStatus" != 'SYNCING'
+        RETURNING id
         """,
         student_profile_id,
     )
+    if row is None:
+        logger.warning(f"[leetcode] Skipping duplicate — already SYNCING for {student_profile_id}")
+        return {}
 
     try:
         logger.info(f"Fetching LeetCode profile for {handle}")

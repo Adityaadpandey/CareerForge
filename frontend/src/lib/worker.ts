@@ -14,6 +14,7 @@ import IORedis from "ioredis";
 import { Worker, Job, Queue, type ConnectionOptions } from "bullmq";
 import { QUEUES } from "./queue";
 import type { IngestionJob, AnalysisJob, JobsJob } from "./queue";
+import { prisma } from "./prisma";
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,43 @@ const defaultJobOpts = {
   removeOnFail: { count: 500 },
 };
 
+function platformForIngestionJob(type: IngestionJob["type"]): "GITHUB" | "LEETCODE" | "RESUME" | "LINKEDIN" {
+  switch (type) {
+    case "GITHUB":
+      return "GITHUB";
+    case "LEETCODE":
+      return "LEETCODE";
+    case "RESUME":
+      return "RESUME";
+    case "LINKEDIN":
+      return "LINKEDIN";
+  }
+}
+
+async function setIngestionStatus(
+  studentProfileId: string,
+  type: IngestionJob["type"],
+  syncStatus: "SYNCING" | "FAILED",
+  errorMessage: string | null = null,
+) {
+  const platform = platformForIngestionJob(type);
+  await prisma.platformConnection.upsert({
+    where: { studentProfileId_platform: { studentProfileId, platform } },
+    create: {
+      studentProfileId,
+      platform,
+      syncStatus,
+      errorMessage,
+      lastSyncedAt: new Date(),
+    },
+    update: {
+      syncStatus,
+      errorMessage,
+      lastSyncedAt: new Date(),
+    },
+  });
+}
+
 // ─── INGESTION WORKER ──────────────────────────────────────────────────────
 
 function startIngestionWorker() {
@@ -96,70 +134,81 @@ function startIngestionWorker() {
       const label = `[ingestion:${job.data.type}:${job.id}]`;
       console.log(`${label} start sid=${sid}`);
 
-      let result: unknown;
-      switch (job.data.type) {
-        case "GITHUB":
-          result = await callAI("/ingest/github", {
-            student_profile_id: sid,
-            username: job.data.username,
-          }, 120_000);
-          break;
-        case "LEETCODE":
-          result = await callAI("/ingest/leetcode", {
-            student_profile_id: sid,
-            handle: job.data.handle,
-          }, 60_000);
-          break;
-        case "RESUME":
-          result = await callAI("/ingest/resume", {
-            student_profile_id: sid,
-            pdf_b64: job.data.fileKey,
-          }, 120_000);
-          break;
-        case "LINKEDIN":
-          result = await callAI("/ingest/linkedin", {
-            student_profile_id: sid,
-            linkedin_url: (job.data as { linkedinUrl?: string }).linkedinUrl,
-          }, 60_000);
-          break;
-        default:
-          throw new Error(`Unknown ingestion type: ${(job.data as Record<string, unknown>).type}`);
-      }
-
-      // Atomic counter → trigger analysis when all ingestion jobs for this user are done
       try {
-        const key = `pending_ingestion:${sid}`;
-        // Only decr if key exists — avoids creating a negative counter if key already expired
-        const current = await counterRedis.get(key);
-        if (current !== null) {
-          const remaining = await counterRedis.decr(key);
-          console.log(`${label} ✓ done — ${remaining} job(s) remaining for ${sid}`);
-          if (remaining <= 0) {
-            await counterRedis.del(key);
-            console.log(`${label} all ingestion done — queuing GAP_ANALYSIS for ${sid}`);
-            await analysisQueue.add(
-              "GAP_ANALYSIS",
-              { type: "GAP_ANALYSIS", studentProfileId: sid },
-              { ...defaultJobOpts, jobId: `gap-${sid}` },
-            );
-          }
-        } else {
-          // Counter already expired — AI service BackgroundTask will handle pipeline
-          console.log(`${label} ✓ done (no counter — AI service will trigger pipeline)`);
+        // Persist status transition even when AI service is unavailable.
+        await setIngestionStatus(sid, job.data.type, "SYNCING", null);
+
+        let result: unknown;
+        switch (job.data.type) {
+          case "GITHUB":
+            // GitHub analysis can take 5-10 min for large profiles (80+ repos)
+            result = await callAI("/ingest/github", {
+              student_profile_id: sid,
+              username: job.data.username,
+            }, 600_000);
+            break;
+          case "LEETCODE":
+            result = await callAI("/ingest/leetcode", {
+              student_profile_id: sid,
+              handle: job.data.handle,
+            }, 60_000);
+            break;
+          case "RESUME":
+            result = await callAI("/ingest/resume", {
+              student_profile_id: sid,
+              pdf_b64: job.data.fileKey,
+            }, 120_000);
+            break;
+          case "LINKEDIN":
+            result = await callAI("/ingest/linkedin", {
+              student_profile_id: sid,
+              linkedin_url: (job.data as { linkedinUrl?: string }).linkedinUrl ?? null,
+              oauth_data: (job.data as { oauth_data?: unknown }).oauth_data ?? null,
+            }, 120_000);
+            break;
+          default:
+            throw new Error(`Unknown ingestion type: ${(job.data as Record<string, unknown>).type}`);
         }
+
+        // Atomic counter → trigger analysis when all ingestion jobs for this user are done
+        try {
+          const key = `pending_ingestion:${sid}`;
+          // Only decr if key exists — avoids creating a negative counter if key already expired
+          const current = await counterRedis.get(key);
+          if (current !== null) {
+            const remaining = await counterRedis.decr(key);
+            console.log(`${label} ✓ done — ${remaining} job(s) remaining for ${sid}`);
+            if (remaining <= 0) {
+              await counterRedis.del(key);
+              console.log(`${label} all ingestion done — queuing GAP_ANALYSIS for ${sid}`);
+              await analysisQueue.add(
+                "GAP_ANALYSIS",
+                { type: "GAP_ANALYSIS", studentProfileId: sid },
+                { ...defaultJobOpts, jobId: `gap-${sid}` },
+              );
+            }
+          } else {
+            // Counter already expired — AI service BackgroundTask will handle pipeline
+            console.log(`${label} ✓ done (no counter — AI service will trigger pipeline)`);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`${label} counter/queue error (non-fatal): ${msg}`);
+        }
+
+        return result;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`${label} counter/queue error (non-fatal): ${msg}`);
+        await setIngestionStatus(sid, job.data.type, "FAILED", msg.slice(0, 500));
+        throw err;
       }
-
-      return result;
     },
     {
       connection: makeConn("ingestion"),
       concurrency: parseInt(process.env.INGESTION_CONCURRENCY ?? "8"),
-      lockDuration: 120_000,      // 2 min lock (ingestion can be slow for large GitHub repos)
-      stalledInterval: 20_000,    // detect stalled jobs every 20s
-      maxStalledCount: 2,         // re-queue stalled jobs up to 2 times before failing
+      lockDuration: 660_000,      // 11 min lock — must exceed max GitHub timeout (10 min)
+      stalledInterval: 60_000,    // check stalled every 60s (less noise for long jobs)
+      maxStalledCount: 1,         // fail fast if stalled — don't pile up duplicate runs
     },
   );
 

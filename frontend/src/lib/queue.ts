@@ -28,7 +28,7 @@ export type IngestionJob =
   | { type: "GITHUB"; studentProfileId: string; username: string }
   | { type: "LEETCODE"; studentProfileId: string; handle: string }
   | { type: "RESUME"; studentProfileId: string; fileKey: string }
-  | { type: "LINKEDIN"; studentProfileId: string; linkedinUrl: string };
+  | { type: "LINKEDIN"; studentProfileId: string; linkedinUrl?: string; oauth_data?: { access_token: string; provider_account_id: string } };
 
 export type AnalysisJob =
   | { type: "GAP_ANALYSIS"; studentProfileId: string }
@@ -56,14 +56,22 @@ export type SegmentJob = { universityId: string };
 
 // Producer helpers
 export async function enqueueIngestion(data: IngestionJob) {
+  // Deterministic jobId prevents duplicate jobs for the same student+platform.
+  // BullMQ silently ignores add() calls when a job with the same ID already
+  // exists in waiting/active/delayed state.
+  const jobId = `${data.type}:${data.studentProfileId}`;
   return getQueue(QUEUES.INGESTION).add(data.type, data, {
+    jobId,
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
   });
 }
 
 export async function enqueueAnalysis(data: AnalysisJob) {
+  // Same dedup for analysis jobs
+  const jobId = `${data.type}:${data.studentProfileId}`;
   return getQueue(QUEUES.ANALYSIS).add(data.type, data, {
+    jobId,
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
   });

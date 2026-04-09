@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
         update: { syncStatus: "PENDING", errorMessage: null },
       });
       ingestionJobs.push(
-        enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedin_url: linkedinUrl })
+        enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl })
       );
     } else {
       // LinkedIn: OAuth path — check if user linked LinkedIn account during onboarding

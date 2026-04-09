@@ -11,15 +11,25 @@ async def ingest_github(student_profile_id: str, username: str) -> dict:
     """Run the deep GitHub analysis agent and return parsed data."""
     pool = await get_pool()
 
-    # Mark as syncing
-    await pool.execute(
+    # Guard: atomic check-and-set to SYNCING.
+    # If the row is already SYNCING, another job is in progress — skip.
+    row = await pool.fetchrow(
         """
         UPDATE "PlatformConnection"
         SET "syncStatus" = 'SYNCING', "lastSyncedAt" = NOW()
-        WHERE "studentProfileId" = $1 AND platform = 'GITHUB'
+        WHERE "studentProfileId" = $1
+          AND platform = 'GITHUB'
+          AND "syncStatus" != 'SYNCING'
+        RETURNING id
         """,
         student_profile_id,
     )
+
+    if row is None:
+        logger.warning(
+            f"[github] Skipping duplicate — already SYNCING for {student_profile_id}"
+        )
+        return {}
 
     try:
         logger.info(f"Starting deep GitHub analysis for {username}")

@@ -30,14 +30,20 @@ async def ingest_resume(student_profile_id: str, pdf_bytes: bytes) -> dict:
     """Parse resume PDF and store structured data in platform connection."""
     pool = await get_pool()
 
-    await pool.execute(
+    row = await pool.fetchrow(
         """
         UPDATE "PlatformConnection"
         SET "syncStatus" = 'SYNCING', "lastSyncedAt" = NOW()
-        WHERE "studentProfileId" = $1 AND platform = 'RESUME'
+        WHERE "studentProfileId" = $1
+          AND platform = 'RESUME'
+          AND "syncStatus" != 'SYNCING'
+        RETURNING id
         """,
         student_profile_id,
     )
+    if row is None:
+        logger.warning(f"[resume] Skipping duplicate — already SYNCING for {student_profile_id}")
+        return {}
 
     try:
         logger.info(f"[resume] Extracting text for {student_profile_id}")
