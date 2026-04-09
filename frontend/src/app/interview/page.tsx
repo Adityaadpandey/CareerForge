@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/shared/sidebar";
-import { Mic, Play, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  Mic,
+  Play,
+  CheckCircle2,
+  Loader2,
+  Video,
+  Calendar,
+  Hourglass,
+} from "lucide-react";
+import { useState } from "react";
 
 type InterviewSession = {
   id: string;
@@ -14,6 +23,7 @@ type InterviewSession = {
   overallScore: number | null;
   createdAt: string;
   completedAt: string | null;
+  scheduledAt: string | null;
   mission: { title: string } | null;
 };
 
@@ -21,30 +31,42 @@ const TYPE_LABELS: Record<string, string> = {
   TECHNICAL: "Technical",
   SYSTEM_DESIGN: "System Design",
   BEHAVIORAL: "Behavioral",
+  HR: "HR",
   MIXED: "Mixed",
 };
 
-const INTERVIEW_TYPES = ["TECHNICAL", "SYSTEM_DESIGN", "BEHAVIORAL", "MIXED"] as const;
+const INTERVIEW_TYPES = ["TECHNICAL", "SYSTEM_DESIGN", "BEHAVIORAL", "HR", "MIXED"] as const;
 
 export default function InterviewPage() {
   const router = useRouter();
+  const [scheduleType, setScheduleType] = useState<string | null>(null);
+  const [scheduledAt, setScheduledAt] = useState("");
 
-  const { data: sessions, isLoading } = useQuery<InterviewSession[]>({
+  const { data: sessions, isLoading, refetch } = useQuery<InterviewSession[]>({
     queryKey: ["interviews"],
     queryFn: () => axios.get<InterviewSession[]>("/api/interviews").then((r) => r.data),
   });
 
   const startMutation = useMutation({
-    mutationFn: (type: string) =>
-      axios.post<InterviewSession>("/api/interviews", { type }).then((r) => r.data),
+    mutationFn: ({ type, scheduledAt }: { type: string; scheduledAt?: string }) =>
+      axios.post<InterviewSession>("/api/interviews", { type, scheduledAt }).then((r) => r.data),
     onSuccess: (session) => {
-      router.push(`/interview/${session.id}`);
+      if (session.status === "UPCOMING") {
+        toast.success("Interview scheduled!");
+        setScheduleType(null);
+        setScheduledAt("");
+        refetch();
+      } else {
+        router.push(`/interview/${session.id}/call`);
+      }
     },
-    onError: () => toast.error("Failed to start interview"),
+    onError: () => toast.error("Failed to create interview"),
   });
 
-  const completed = sessions?.filter((s) => s.status === "COMPLETED") ?? [];
+  const upcoming = sessions?.filter((s) => s.status === "UPCOMING") ?? [];
   const inProgress = sessions?.filter((s) => s.status === "IN_PROGRESS") ?? [];
+  const processing = sessions?.filter((s) => s.status === "PROCESSING") ?? [];
+  const completed = sessions?.filter((s) => s.status === "COMPLETED") ?? [];
 
   return (
     <div className="flex min-h-screen bg-[#0a0a0a]">
@@ -55,32 +77,131 @@ export default function InterviewPage() {
           <h1 className="text-2xl text-white font-light">Mock Interviews</h1>
         </div>
 
-        {/* Start a new interview */}
+        {/* Start a session */}
         <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6 mb-6">
           <h2 className="text-sm font-medium text-white mb-1">Start a session</h2>
           <p className="text-xs text-zinc-500 mb-4">
-            AI interviewer adapts questions to your profile and mission context.
+            Real-time AI interviewer with voice + video. Get a full scorecard with emotion analysis.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {INTERVIEW_TYPES.map((type) => (
               <button
                 key={type}
-                onClick={() => startMutation.mutate(type)}
+                onClick={() => startMutation.mutate({ type })}
                 disabled={startMutation.isPending}
                 className="flex flex-col items-center gap-2 p-4 bg-zinc-800/40 hover:bg-zinc-800/80 border border-zinc-700/60 hover:border-amber-500/30 rounded-xl transition-colors disabled:opacity-50"
               >
-                {startMutation.isPending && startMutation.variables === type ? (
+                {startMutation.isPending &&
+                startMutation.variables?.type === type &&
+                !scheduleType ? (
                   <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
                 ) : (
-                  <Mic className="w-5 h-5 text-zinc-400" />
+                  <Video className="w-5 h-5 text-zinc-400" />
                 )}
                 <span className="text-xs text-zinc-400 font-mono">{TYPE_LABELS[type]}</span>
               </button>
             ))}
           </div>
+
+          {/* Schedule section */}
+          <div className="mt-4 pt-4 border-t border-zinc-800/60">
+            <p className="text-xs text-zinc-500 mb-3 font-mono">— or schedule for later —</p>
+            {scheduleType ? (
+              <div className="flex items-center gap-3">
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                />
+                <button
+                  onClick={() => {
+                    if (!scheduledAt) return toast.error("Pick a date and time");
+                    startMutation.mutate({ type: scheduleType, scheduledAt });
+                  }}
+                  disabled={startMutation.isPending}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {startMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Schedule"
+                  )}
+                </button>
+                <button
+                  onClick={() => setScheduleType(null)}
+                  className="text-xs text-zinc-500 hover:text-white px-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {INTERVIEW_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setScheduleType(type)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-xs rounded-lg transition-colors"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    {TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* In-progress sessions */}
+        {/* Upcoming */}
+        {upcoming.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-mono text-blue-400 uppercase tracking-widest mb-3">
+              Scheduled ({upcoming.length})
+            </p>
+            <div className="space-y-2">
+              {upcoming.map((s) => {
+                const isReady = s.scheduledAt ? new Date(s.scheduledAt) <= new Date() : true;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                      <div>
+                        <p className="text-sm text-white">{TYPE_LABELS[s.interviewType]}</p>
+                        {s.scheduledAt && (
+                          <p className="text-xs text-zinc-500 font-mono">
+                            {new Date(s.scheduledAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isReady ? (
+                      <button
+                        onClick={() => router.push(`/interview/${s.id}/call`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        Join Now
+                      </button>
+                    ) : (
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {s.scheduledAt
+                          ? `in ${Math.ceil(
+                              (new Date(s.scheduledAt).getTime() - Date.now()) / 60000
+                            )}m`
+                          : "Upcoming"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* In-progress */}
         {inProgress.length > 0 && (
           <div className="mb-6">
             <p className="text-xs font-mono text-amber-400 uppercase tracking-widest mb-3">
@@ -90,7 +211,7 @@ export default function InterviewPage() {
               {inProgress.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => router.push(`/interview/${s.id}`)}
+                  onClick={() => router.push(`/interview/${s.id}/call`)}
                   className="w-full flex items-center justify-between p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl hover:border-amber-500/40 transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -100,23 +221,49 @@ export default function InterviewPage() {
                       {s.mission && <p className="text-xs text-zinc-500">{s.mission.title}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-zinc-600" />
-                    <span className="text-xs text-zinc-500 font-mono">
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    {new Date(s.createdAt).toLocaleDateString()}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Past sessions */}
+        {/* Processing */}
+        {processing.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-mono text-zinc-400 uppercase tracking-widest mb-3">
+              Processing ({processing.length})
+            </p>
+            <div className="space-y-2">
+              {processing.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between p-4 bg-zinc-900/40 border border-zinc-800/60 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <Hourglass className="w-4 h-4 text-zinc-500 animate-pulse" />
+                    <div>
+                      <p className="text-sm text-white">{TYPE_LABELS[s.interviewType]}</p>
+                      <p className="text-xs text-zinc-500">Generating scorecard…</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/interview/${s.id}/debrief`)}
+                    className="text-xs text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-600 px-3 py-1 rounded-lg transition-colors"
+                  >
+                    Check →
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* History */}
         <div>
-          <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-3">
-            History
-          </p>
+          <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-3">History</p>
 
           {isLoading && (
             <div className="flex items-center justify-center py-10">
@@ -162,7 +309,7 @@ export default function InterviewPage() {
                     onClick={() => router.push(`/interview/${s.id}/debrief`)}
                     className="text-xs text-zinc-500 hover:text-white border border-zinc-800 hover:border-zinc-600 px-3 py-1 rounded-lg transition-colors"
                   >
-                    Debrief →
+                    Scorecard →
                   </button>
                 </div>
               </div>
