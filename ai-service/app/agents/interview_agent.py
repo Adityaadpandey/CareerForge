@@ -11,10 +11,13 @@ Design:
 - Each message runs: load_session → generate_response → (optionally) generate_debrief
 - Answer scoring happens in parallel with response generation
 - Debrief is generated once when the interview concludes
+- generate_debrief_from_transcript() handles the Stream video interview flow
 """
 import json
 import logging
 from typing import TypedDict, Optional, Literal
+
+import httpx
 
 from app.db.client import get_pool
 from app.agents.base import llm_json, get_openai
@@ -271,3 +274,159 @@ async def process_message(session_id: str, message: str, student_profile_id: str
         "state": state["next_state"],
         "done": state["done"],
     }
+
+
+# ─── STREAM VIDEO DEBRIEF ───────────────────────────────────────
+
+async def _parse_stream_transcript(transcript_url: str) -> list[dict]:
+    """Download and parse Stream JSONL transcript into list of {role, content} dicts."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(transcript_url, timeout=30)
+        resp.raise_for_status()
+
+    lines = resp.text.strip().splitlines()
+    items = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+            if item.get("type") == "speech" and item.get("text"):
+                role = "ai" if item.get("speaker_id") == "ai-interviewer" else "student"
+                items.append({"role": role, "content": item["text"]})
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return items
+
+
+async def generate_debrief_from_transcript(
+    session_id: str,
+    student_profile_id: str,
+    transcript_url: str,
+    emotion_data: dict | None,
+    communication_data: dict | None,
+) -> dict:
+    """Generate debrief from a Stream transcript URL + optional emotion/communication data.
+
+    Called by the webhook when call.transcription_ready fires.
+    """
+    pool = await get_pool()
+
+    transcript = await _parse_stream_transcript(transcript_url)
+
+    if not transcript:
+        logger.warning(f"[interview] Empty transcript for session {session_id[:8]}")
+        return {}
+
+    transcript_text = "\n".join(
+        f"{t['role'].upper()}: {t['content']}" for t in transcript[-30:]
+    )
+
+    emotion_section = ""
+    if emotion_data and emotion_data.get("averages"):
+        avgs = emotion_data["averages"]
+        dominant = max(avgs, key=lambda k: avgs[k])
+        confidence = round((avgs.get("happy", 0) + avgs.get("neutral", 0)) * 10, 1)
+        nervousness = round((avgs.get("fearful", 0) + avgs.get("sad", 0)) * 10, 1)
+        emotion_section = f"""
+Emotion data (from facial analysis during interview):
+- Dominant emotion: {dominant}
+- Confidence proxy score: {confidence}/10
+- Nervousness proxy score: {nervousness}/10
+- Full averages: {json.dumps(avgs)}
+"""
+
+    comm_section = ""
+    if communication_data:
+        comm_section = f"\nCommunication metrics: {json.dumps(communication_data)}"
+
+    debrief = await llm_json(
+        prompt=f"""Generate a comprehensive interview debrief.
+
+Transcript (last 30 turns):
+{transcript_text}
+{emotion_section}
+{comm_section}
+
+Return JSON with EXACTLY these fields:
+{{
+  "strong_zones": ["2-4 specific areas the candidate did well"],
+  "weak_zones": ["2-4 specific areas needing improvement"],
+  "key_phrase_to_practice": "one specific phrase or answer structure to practice",
+  "one_insight": "the single most important actionable takeaway",
+  "scores": {{
+    "accuracy": <0-10 float>,
+    "depth": <0-10 float>,
+    "clarity": <0-10 float>,
+    "overall": <0-10 float>
+  }},
+  "emotion_summary": {{
+    "dominant_emotion": "<emotion name>",
+    "confidence_score": <0-10 float>,
+    "nervousness_score": <0-10 float>,
+    "insight": "<one sentence about emotional presence during the interview>"
+  }},
+  "communication": {{
+    "filler_word_count": <int>,
+    "filler_words_detected": ["list of filler words used"],
+    "estimated_wpm": <int or null>,
+    "eye_contact_score": <0-10 float or null>,
+    "tip": "<one concrete communication improvement tip>"
+  }}
+}}""",
+        model="gpt-4o-mini",
+        temperature=0.4,
+        fallback={
+            "strong_zones": [],
+            "weak_zones": [],
+            "key_phrase_to_practice": "",
+            "one_insight": "",
+            "scores": {"accuracy": 5, "depth": 5, "clarity": 5, "overall": 5},
+            "emotion_summary": {
+                "dominant_emotion": "neutral",
+                "confidence_score": 5.0,
+                "nervousness_score": 5.0,
+                "insight": "",
+            },
+            "communication": {
+                "filler_word_count": 0,
+                "filler_words_detected": [],
+                "estimated_wpm": None,
+                "eye_contact_score": None,
+                "tip": "",
+            },
+        },
+        label="interview/generate-debrief",
+    )
+
+    # Override emotion fields with actual face-api.js data if available
+    if emotion_data and emotion_data.get("averages"):
+        avgs = emotion_data["averages"]
+        dominant = max(avgs, key=lambda k: avgs[k])
+        debrief.setdefault("emotion_summary", {})
+        debrief["emotion_summary"]["dominant_emotion"] = dominant
+        debrief["emotion_summary"]["confidence_score"] = round(
+            (avgs.get("happy", 0) + avgs.get("neutral", 0)) * 10, 1
+        )
+        debrief["emotion_summary"]["nervousness_score"] = round(
+            (avgs.get("fearful", 0) + avgs.get("sad", 0)) * 10, 1
+        )
+
+    overall_score = debrief.get("scores", {}).get("overall", 5.0) * 10  # convert to 0-100
+
+    await pool.execute(
+        """
+        UPDATE "InterviewSession"
+        SET status = 'COMPLETED', "completedAt" = NOW(),
+            debrief = $2, "overallScore" = $3,
+            transcript = $4
+        WHERE id = $1
+        """,
+        session_id,
+        json.dumps(debrief),
+        overall_score,
+        json.dumps(transcript),
+    )
+
+    logger.info(f"[interview] Debrief generated for {session_id[:8]}… score={overall_score:.1f}/100")
+    return debrief

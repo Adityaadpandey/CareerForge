@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from app.models.schemas import InterviewMessageRequest, InterviewEndRequest
-from app.agents.interview_agent import process_message
+from app.models.schemas import InterviewMessageRequest, InterviewEndRequest, InterviewGenerateDebriefRequest
+from app.agents.interview_agent import process_message, generate_debrief_from_transcript
 
 router = APIRouter(prefix="/interview", tags=["interview"])
 
@@ -13,20 +13,18 @@ async def interview_message(req: InterviewMessageRequest):
 
 @router.post("/end")
 async def interview_end(req: InterviewEndRequest):
-    # End is triggered when done=True from message endpoint
-    # This is called directly from Next.js when user clicks "End"
-    from app.agents.interview_agent import generate_debrief, SessionState
-    state: SessionState = {
-        "session_id": req.session_id,
-        "student_profile_id": req.student_profile_id,
-        "message": "",
-        "current_state": "DEBRIEF",
-        "transcript": [],
-        "mission_context": None,
-        "answer_scores": [],
-        "response": "",
-        "next_state": "DEBRIEF",
-        "done": True,
-    }
-    result = await generate_debrief(state)
-    return {"status": "done", "debrief": "generated", "overall_score": 0}
+    # Legacy endpoint for text-based interviews — kept for backward compatibility
+    return {"status": "done"}
+
+
+@router.post("/generate-debrief")
+async def interview_generate_debrief(req: InterviewGenerateDebriefRequest):
+    """Called by the Stream webhook when call.transcription_ready fires."""
+    result = await generate_debrief_from_transcript(
+        session_id=req.session_id,
+        student_profile_id=req.student_profile_id,
+        transcript_url=req.transcript_url,
+        emotion_data=req.emotion_data,
+        communication_data=req.communication_data,
+    )
+    return {"status": "ok", "debrief": result}

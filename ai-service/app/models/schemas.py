@@ -61,3 +61,11 @@ class IngestLinkedInRequest(BaseModel):
     student_profile_id: str
     linkedin_url: Optional[str] = None       # for supplemental scraping
     oauth_data: Optional[dict] = None        # structured data from LinkedIn OAuth + /v2/me
+
+
+class InterviewGenerateDebriefRequest(BaseModel):
+    session_id: str
+    student_profile_id: str
+    transcript_url: str
+    emotion_data: Optional[dict] = None
+    communication_data: Optional[dict] = None
