@@ -1,3 +1,18 @@
+// ─── STREAM WEBHOOK ───────────────────────────────────────────
+// TODO: Register this URL in the Stream dashboard so events reach your app:
+//   1. Go to https://dashboard.getstream.io → your project → "Webhooks" tab
+//   2. Click "Add Endpoint"
+//   3. URL: https://<your-ngrok-url>/api/stream/webhook
+//      (for local dev: run `ngrok http 3000` to get the URL)
+//   4. Select these events:
+//        • call.session_started
+//        • call.session_participant_left
+//        • call.session_ended
+//        • call.transcription_ready
+//        • call.recording_ready
+//   5. Save — Stream will now send signed POST requests here
+// ──────────────────────────────────────────────────────────────
+
 import { NextRequest, NextResponse } from "next/server";
 import {
   CallSessionStartedEvent,

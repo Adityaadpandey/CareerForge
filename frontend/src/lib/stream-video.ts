@@ -1,3 +1,7 @@
+// TODO: Add to frontend/.env before using:
+//   NEXT_PUBLIC_STREAM_VIDEO_API_KEY=   ← from dashboard.getstream.io → your app → API Key
+//   STREAM_VIDEO_SECRET_KEY=            ← from dashboard.getstream.io → your app → Secret
+
 import "server-only";
 import { StreamClient } from "@stream-io/node-sdk";
 
