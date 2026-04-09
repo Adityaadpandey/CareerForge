@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { aiClient } from "@/lib/ai-client";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+  const { emotionData, communicationData } = body;
 
   const profile = await prisma.studentProfile.findUnique({
     where: { userId: session.user.id },
@@ -18,23 +19,13 @@ export async function POST(
   });
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  // Ask AI service to generate debrief
-  const aiRes = await aiClient.post("/interview/end", {
-    session_id: id,
-    student_profile_id: profile.id,
-  });
-
-  const { debrief, overall_score } = aiRes.data;
-
-  const updated = await prisma.interviewSession.update({
+  const updated = await prisma.interviewSession.updateMany({
     where: { id, studentProfileId: profile.id },
     data: {
-      status: "COMPLETED",
-      completedAt: new Date(),
-      debrief,
-      overallScore: overall_score,
+      ...(emotionData !== undefined && { emotionData }),
+      ...(communicationData !== undefined && { communicationData }),
     },
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ saved: updated.count > 0 });
 }
