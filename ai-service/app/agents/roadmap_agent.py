@@ -40,6 +40,17 @@ class RoadmapState(TypedDict):
     missions: list[dict]
 
 
+def _parse_deadline_for_db(deadline: str | None) -> datetime | None:
+    """Normalize ISO deadline to a naive UTC datetime for TIMESTAMP columns."""
+    if not deadline:
+        return None
+
+    dt = datetime.fromisoformat(deadline)
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 # ─── NODE 1: LOAD GAPS (critical) ──────────────────────────────
 
 @agent_node("load_gaps", critical=True)
@@ -225,7 +236,7 @@ async def write_missions(state: RoadmapState) -> RoadmapState:
             m.get("status", "LOCKED"),
             json.dumps(m.get("resources", [])),
             m.get("estimated_hours", 10),
-            datetime.fromisoformat(m["deadline"]) if m.get("deadline") else None,
+            _parse_deadline_for_db(m.get("deadline")),
             m.get("order_index", 0),
             [],
         )

@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
+import LinkedIn from "next-auth/providers/linkedin";
 
 // Edge-compatible config — NO Prisma/Node.js imports here
 export const authConfig: NextAuthConfig = {
@@ -17,6 +18,11 @@ export const authConfig: NextAuthConfig = {
           image: profile.avatar_url,
         };
       },
+    }),
+    LinkedIn({
+      clientId: process.env.AUTH_LINKEDIN_ID!,
+      clientSecret: process.env.AUTH_LINKEDIN_SECRET!,
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   pages: {

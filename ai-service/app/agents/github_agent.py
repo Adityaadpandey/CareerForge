@@ -64,8 +64,10 @@ CONFIG_FILES = [
     "docker-compose.yml", "docker-compose.yaml", ".github/workflows/ci.yml",
     "Makefile", "tsconfig.json", "next.config.js", "next.config.ts",
     "vite.config.ts", "webpack.config.js", ".eslintrc.json", ".prettierrc",
+    "package.json", "requirements.txt", "Cargo.toml", "go.mod", "pom.xml"
 ]
 MAX_FILE_SIZE = 3000  # chars per source file
+CROWN_JEWEL_MAX_SIZE = 15000  # allow larger file for the crown jewel review
 
 
 # ─── STATE ──────────────────────────────────────────────────────
@@ -79,9 +81,11 @@ class GitHubAgentState(TypedDict):
     profile: dict
     repos_deep: list[dict]
     lang_totals: dict[str, int]
-    code_samples: list[dict]        # actual code from repos
-    contributions: list[dict]       # OSS contributions (PRs, commits on other repos)
+    code_samples: list[dict]        # actual code from repos plus crown_jewel
+    extracted_stack: list[str]      # deeply extracted exact tech stack (e.g., Zod, Tailwind)
+    contributions: list[dict]       # OSS contributions
     commit_patterns: dict
+    workflow_analysis: dict         # PR strategy vs straight to main
     code_quality: dict
     synthesis: dict
     final_parsed: dict
@@ -90,8 +94,10 @@ class GitHubAgentState(TypedDict):
 
 # ─── GITHUB HELPERS ─────────────────────────────────────────────
 
-def _create_github() -> Github:
-    return Github(settings.GITHUB_TOKEN or None, timeout=30, retry=3, per_page=100)
+def _create_github(token: str | None = None) -> Github:
+    """Create GitHub client. Prefers user OAuth token for private repo access."""
+    t = token or settings.GITHUB_TOKEN or None
+    return Github(t, timeout=30, retry=3, per_page=100)
 
 
 def _check_tree(repo: Repository, patterns: list[str]) -> bool:
@@ -139,11 +145,13 @@ def _detect_deps(repo: Repository) -> list[str]:
 
 
 def _repo_score(r: Repository) -> float:
+    """Composite score heavily weighted toward recency (latest pushed first)."""
     recency = 0
     if r.pushed_at:
         days_ago = (datetime.now(tz=timezone.utc) - r.pushed_at.replace(tzinfo=timezone.utc)).days
         recency = max(0, 365 - days_ago) / 365
-    return r.stargazers_count * 3 + r.forks_count * 2 + recency * 5 + r.size / 1000
+    # Recency is dominant — we want their latest work first
+    return recency * 50 + r.stargazers_count * 3 + r.forks_count * 2 + r.size / 1000
 
 
 def _fetch_file_content(repo: Repository, path: str, max_chars: int = MAX_FILE_SIZE) -> str | None:
@@ -214,11 +222,42 @@ def _get_commit_diffs(repo: Repository, username: str, count: int = 5) -> list[d
 
 # ─── NODE 1: FETCH PROFILE (critical) ──────────────────────────
 
+async def _get_user_oauth_token(student_profile_id: str) -> str | None:
+    """Look up the student's GitHub OAuth token from the Account table.
+
+    Chain: StudentProfile.userId → Account(provider='github').access_token
+    This gives us access to their private repos.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT a.access_token
+        FROM "Account" a
+        JOIN "StudentProfile" sp ON sp."userId" = a."userId"
+        WHERE sp.id = $1 AND a.provider = 'github'
+        LIMIT 1
+        """,
+        student_profile_id,
+    )
+    if row and row["access_token"]:
+        return row["access_token"]
+    return None
+
+
 @agent_node("fetch_profile", critical=True)
 async def fetch_profile(state: GitHubAgentState) -> GitHubAgentState:
-    """Fetch user profile, org memberships, and account metadata."""
-    g = _create_github()
-    user = g.get_user(state["username"])
+    """Fetch user profile using their OAuth token (for private repo access)."""
+    # Try to get the user's own OAuth token — this unlocks private repos
+    oauth_token = await _get_user_oauth_token(state["student_profile_id"])
+    if oauth_token:
+        logger.info("[github-agent] Using student's OAuth token — private repos accessible")
+        g = _create_github(token=oauth_token)
+        # With OAuth token, get_user() returns the authenticated user
+        user = g.get_user()
+    else:
+        logger.info("[github-agent] No OAuth token found — using server PAT (public repos only)")
+        g = _create_github()
+        user = g.get_user(state["username"])
 
     orgs = []
     try:
@@ -229,6 +268,14 @@ async def fetch_profile(state: GitHubAgentState) -> GitHubAgentState:
     created = user.created_at
     now = datetime.now(tz=timezone.utc)
     age_months = max(1, (now.year - created.year) * 12 + (now.month - created.month))
+
+    total_repos = user.public_repos
+    try:
+        # With OAuth token, we can count private repos too
+        total_private = user.total_private_repos or 0
+        total_repos += total_private
+    except Exception:
+        total_private = 0
 
     return {
         **state,
@@ -242,6 +289,8 @@ async def fetch_profile(state: GitHubAgentState) -> GitHubAgentState:
             "location": user.location or "",
             "hireable": user.hireable or False,
             "public_repos": user.public_repos,
+            "private_repos": total_private,
+            "total_repos": total_repos,
             "followers": user.followers,
             "following": user.following,
             "account_age_months": age_months,
@@ -256,15 +305,38 @@ async def fetch_profile(state: GitHubAgentState) -> GitHubAgentState:
 
 @agent_node("fetch_repos_deep", critical=True)
 async def fetch_repos_deep(state: GitHubAgentState) -> GitHubAgentState:
-    """Metadata + README + CI/test detection for top repos."""
+    """Fetch ALL repos (including private), sorted by most recently pushed."""
     g: Github = state.get("_github") or _create_github()
-    user = g.get_user(state["username"])
     username = state["username"]
 
-    all_repos = list(user.get_repos(type="owner"))
+    # If we have an OAuth token, get_user() returns authenticated user
+    # and get_repos() includes private repos automatically
+    try:
+        # Try authenticated user first (gives private repos)
+        user = g.get_user()
+        if user.login.lower() != username.lower():
+            # Fallback: we're using server PAT, fetch by username
+            user = g.get_user(username)
+            all_repos = list(user.get_repos(type="owner"))
+        else:
+            # Authenticated — get ALL repos including private
+            all_repos = list(user.get_repos(affiliation="owner", sort="pushed", direction="desc"))
+    except Exception:
+        user = g.get_user(username)
+        all_repos = list(user.get_repos(type="owner"))
+
     non_fork = [r for r in all_repos if not r.fork]
+    # Sort by recency-weighted composite score (latest pushed first)
     sorted_repos = sorted(non_fork, key=_repo_score, reverse=True)
 
+    private_count = sum(1 for r in non_fork if r.private)
+    public_count = len(non_fork) - private_count
+    logger.info(
+        f"[github-agent] Found {len(non_fork)} non-fork repos "
+        f"({public_count} public, {private_count} private), sorted by recency"
+    )
+
+    # Language totals across all non-fork repos (public + private)
     lang_totals: dict[str, int] = {}
     for repo in non_fork[:40]:
         try:
@@ -281,6 +353,7 @@ async def fetch_repos_deep(state: GitHubAgentState) -> GitHubAgentState:
             "name": repo.name,
             "full_name": repo.full_name,
             "description": repo.description or "",
+            "private": repo.private,
             "stars": repo.stargazers_count,
             "forks": repo.forks_count,
             "open_issues": repo.open_issues_count,
@@ -288,9 +361,12 @@ async def fetch_repos_deep(state: GitHubAgentState) -> GitHubAgentState:
             "license": repo.license.spdx_id if repo.license else None,
             "languages": list((repo.get_languages() or {}).keys())[:8],
             "created_at": repo.created_at.isoformat() if repo.created_at else "",
+            "pushed_at": repo.pushed_at.isoformat() if repo.pushed_at else "",
             "updated_at": repo.updated_at.isoformat() if repo.updated_at else "",
             "default_branch": repo.default_branch,
-            "_repo_obj": repo if is_deep else None,  # keep ref for code fetch
+            "_repo_obj": repo if is_deep else None,
+            "total_commits": 0,
+            "is_potentially_boilerplate": False,
         }
 
         if is_deep:
@@ -300,9 +376,16 @@ async def fetch_repos_deep(state: GitHubAgentState) -> GitHubAgentState:
             data["dep_files"] = _detect_deps(repo)
             data["readme_excerpt"] = _get_readme(repo, max_chars=2000)
             data["recent_commits"] = _get_recent_commits(repo, username)
+            try:
+                data["total_commits"] = repo.get_commits().totalCount
+                # Flag as boilerplate if large project but <= 3 commits total
+                if data["total_commits"] <= 3 and data["size_kb"] > 500:
+                    data["is_potentially_boilerplate"] = True
+            except Exception:
+                pass
         else:
             data.update(topics=[], has_ci=False, has_tests=False, dep_files=[],
-                        readme_excerpt="", recent_commits=[])
+                        readme_excerpt="", recent_commits=[], total_commits=0, is_potentially_boilerplate=False)
 
         repos_deep.append(data)
 
@@ -346,9 +429,42 @@ async def fetch_code_deep(state: GitHubAgentState) -> GitHubAgentState:
             "commit_diffs": [],
         }
 
-        # 1) Directory tree — single API call, reveals full architecture
-        sample["dir_tree"] = _get_dir_tree(repo, max_depth=3)
-        logger.info(f"[github-agent] Tree for {repo_data['name']}: {len(sample['dir_tree'])} entries")
+        # 1) Directory tree + Crown Jewel detection — single API call
+        extracted_stack = state.get("extracted_stack", [])
+        try:
+            tree = repo.get_git_tree(repo.default_branch, recursive=True)
+            paths = []
+            files_by_size = []
+            valid_exts = {".ts", ".tsx", ".py", ".go", ".rs", ".java", ".cpp", ".c", ".rb"}
+            ignore_dirs = {"node_modules/", "vendor/", "dist/", "build/", "test", "spec", "mock", ".min."}
+            
+            for item in tree.tree:
+                depth = item.path.count("/")
+                if depth < 3:
+                    prefix = "📁 " if item.type == "tree" else "📄 "
+                    paths.append(f"{prefix}{item.path}")
+                
+                if item.type == "blob" and any(item.path.endswith(ext) for ext in valid_exts):
+                    if not any(ignore in item.path for ignore in ignore_dirs):
+                        files_by_size.append(item)
+            
+            sample["dir_tree"] = paths[:100]
+            logger.info(f"[github-agent] Tree for {repo_data['name']}: {len(sample['dir_tree'])} entries")
+            
+            # Crown Jewel extraction
+            files_by_size.sort(key=lambda x: x.size, reverse=True)
+            if files_by_size:
+                cj_item = files_by_size[0]
+                cj_content = _fetch_file_content(repo, cj_item.path, max_chars=CROWN_JEWEL_MAX_SIZE)
+                if cj_content:
+                    sample["crown_jewel"] = {
+                        "path": cj_item.path,
+                        "size": cj_item.size,
+                        "content": cj_content
+                    }
+                    logger.info(f"[github-agent] Crown Jewel found: {cj_item.path} ({cj_item.size} bytes)")
+        except Exception as e:
+            logger.warning(f"[github-agent] Tree fetch failed for {repo_data['name']}: {e}")
 
         # 2) Fetch entry-point source files — the code they actually wrote
         files_fetched = 0
@@ -360,15 +476,31 @@ async def fetch_code_deep(state: GitHubAgentState) -> GitHubAgentState:
                 sample["entry_point_code"][path] = content
                 files_fetched += 1
 
-        # 3) Fetch config/infra files — reveals how they set up projects
+        # 3) Fetch config/infra files + AST stack extraction
         configs_fetched = 0
         for path in CONFIG_FILES:
-            if configs_fetched >= 2:
+            if configs_fetched >= 3:
                 break
             content = _fetch_file_content(repo, path, max_chars=1500)
             if content:
                 sample["config_files"][path] = content
                 configs_fetched += 1
+                
+                # Tech Stack Extraction (AST-lite)
+                if path == "package.json":
+                    try:
+                        pkg = json.loads(content)
+                        deps = list(pkg.get("dependencies", {}).keys()) + list(pkg.get("devDependencies", {}).keys())
+                        for dep in deps:
+                            if dep not in extracted_stack and not dep.startswith(("@types/", "eslint", "prettier", "typescript", "ts-node")):
+                                extracted_stack.append(dep)
+                    except Exception:
+                        pass
+                elif path == "requirements.txt":
+                    for line in content.split("\n"):
+                        dep = line.split("==")[0].split(">=")[0].strip()
+                        if dep and dep not in extracted_stack and not dep.startswith("#"):
+                            extracted_stack.append(dep)
 
         # 4) Commit diffs — what code they actually changed
         sample["commit_diffs"] = _get_commit_diffs(repo, username, count=3)
@@ -380,7 +512,7 @@ async def fetch_code_deep(state: GitHubAgentState) -> GitHubAgentState:
             f"{len(sample['commit_diffs'])} diffs"
         )
 
-    return {**state, "code_samples": code_samples}
+    return {**state, "code_samples": code_samples, "extracted_stack": extracted_stack}
 
 
 # ─── NODE 4: FETCH CONTRIBUTIONS (non-critical) ────────────────
@@ -496,6 +628,23 @@ async def fetch_commit_patterns(state: GitHubAgentState) -> GitHubAgentState:
     n_msg = max(len(all_messages), 1)
     conventional_count = sum(1 for m in all_messages if CONVENTIONAL_RE.match(m.lower()))
 
+    # Workflow Analysis: Do they use PRs on their own repos?
+    workflow = {
+        "pr_driven": False,
+        "classification": "SOLO_HACKER",
+        "own_pr_count": 0
+    }
+    try:
+        # Search for PRs authored by the user on their own repos
+        own_prs = g.search_issues(f"type:pr author:{username} user:{username}", sort="updated", order="desc")
+        pr_count = own_prs.totalCount
+        workflow["own_pr_count"] = pr_count
+        if pr_count > 0:
+            workflow["pr_driven"] = True
+            workflow["classification"] = "PRODUCTION_READY"
+    except Exception as e:
+        logger.warning(f"[github-agent] Workflow analysis PR search failed: {e}")
+
     return {
         **state,
         "commit_patterns": {
@@ -508,6 +657,7 @@ async def fetch_commit_patterns(state: GitHubAgentState) -> GitHubAgentState:
             "conventional_commit_ratio": round(conventional_count / n_msg, 2),
             "unique_active_days_90d": len(set(d.date() for d in all_dates)),
         },
+        "workflow_analysis": workflow,
     }
 
 
@@ -525,16 +675,23 @@ async def analyze_code_quality(state: GitHubAgentState) -> GitHubAgentState:
     # Build rich context from code samples
     code_context_parts = []
     for sample in code_samples[:3]:  # top 3 repos with code
-        parts = [f"\n### Project: {sample['repo_name']}"]
+        is_private = next((r["private"] for r in repos if r["name"] == sample["repo_name"]), False)
+        repo_type = " (Private Repo)" if is_private else ""
+        parts = [f"\n### Project: {sample['repo_name']}{repo_type}"]
 
         # Directory tree
         if sample.get("dir_tree"):
             tree_str = "\n".join(sample["dir_tree"][:40])
             parts.append(f"**Directory structure:**\n```\n{tree_str}\n```")
 
+        # Crown Jewel
+        if sample.get("crown_jewel"):
+            cj = sample["crown_jewel"]
+            parts.append(f"**CROWN JEWEL (Largest Core Logic File) - {cj['path']} ({cj['size']} bytes):**\n```\n{truncate(cj['content'], 2500)}\n```")
+
         # Entry point code
         for path, code in list(sample.get("entry_point_code", {}).items())[:2]:
-            parts.append(f"**{path}:**\n```\n{truncate(code, 2000)}\n```")
+            parts.append(f"**{path}:**\n```\n{truncate(code, 1500)}\n```")
 
         # Config files
         for path, code in list(sample.get("config_files", {}).items())[:1]:
@@ -560,6 +717,7 @@ async def analyze_code_quality(state: GitHubAgentState) -> GitHubAgentState:
         if r.get("readme_excerpt") and r["name"] not in [s["repo_name"] for s in code_samples]:
             readme_ctx.append({
                 "name": r["name"], "description": r["description"],
+                "private": r.get("private", False),
                 "languages": r["languages"], "has_ci": r.get("has_ci"),
                 "has_tests": r.get("has_tests"), "dep_files": r.get("dep_files", []),
                 "readme_excerpt": truncate(r.get("readme_excerpt", ""), 1000),
@@ -588,6 +746,11 @@ You have access to their actual source code, directory structures, and commit di
 
 ## Additional projects (README only):
 {json.dumps(readme_ctx, indent=2) if readme_ctx else "None"}
+
+## Developer Metametrics:
+- Extracted Tech Stack (from package/go.mod parsing): {json.dumps(state.get('extracted_stack', []))}
+- Collaboration Workflow: {state.get('workflow_analysis', {}).get('classification')} (Own PR count: {state.get('workflow_analysis', {}).get('own_pr_count')})
+- Boilerplate Projects Detected: {sum(1 for r in repos if r.get('is_potentially_boilerplate'))}
 {contrib_ctx}
 
 ## Aggregate signals:
@@ -599,19 +762,19 @@ You have access to their actual source code, directory structures, and commit di
 
 Score each 0-10 with specific evidence:
 1. **readme_quality** — Documentation clarity and completeness
-2. **architecture_maturity** — Do the dir trees show clean separation? MVC/layered? Or flat spaghetti?
-3. **tech_sophistication** — Judging from actual imports, deps, and code patterns: production-grade or tutorial-level?
-4. **code_style** — Naming conventions, consistency, error handling patterns visible in the code
-5. **testing_adoption** — Test files in tree, test-related imports, CI configs
-6. **ci_cd_adoption** — Workflows, Docker, deployment configs
-7. **project_complexity** — Based on tree depth, number of modules, actual code logic
-8. **documentation_quality** — Code comments, README quality, inline docs
-9. **overall** — Holistic assessment of this developer's engineering maturity
+2. **architecture_maturity** — Evaluate the dir tree AND the Crown Jewel file. Do they separate concerns or dump it all together?
+3. **tech_sophistication** — Based on the exact extracted stack and Crown Jewel contents. 
+4. **code_style** — Variables, types, error handling visible in the Crown Jewel code.
+5. **testing_adoption** — Test configs, imports
+6. **ci_cd_adoption** — Workflows
+7. **project_complexity** — If flagged as Boilerplate, penalize. Evaluate genuine algorithmic complexity of Crown Jewel.
+8. **documentation_quality** — Inline docs and README
+9. **overall** — Holistic assessment
 
 Return JSON:
 {{
   "scores": {{"readme_quality": 0, "architecture_maturity": 0, "tech_sophistication": 0, "code_style": 0, "testing_adoption": 0, "ci_cd_adoption": 0, "project_complexity": 0, "documentation_quality": 0, "overall": 0}},
-  "project_tiers": {{"project_name": "toy|learning|portfolio|production"}},
+  "project_tiers": {{"project_name": "toy|tutorial_boilerplate|learning|portfolio|production"}},
   "code_patterns_observed": ["pattern1: specific evidence", "pattern2: specific evidence"],
   "notable_observations": ["observation with specific code references"]
 }}""",
@@ -656,7 +819,7 @@ async def synthesize_profile(state: GitHubAgentState) -> GitHubAgentState:
 
     top_projects = [
         {"name": r["name"], "description": r["description"], "languages": r["languages"],
-         "stars": r["stars"], "tier": r.get("complexity_tier", "unknown")}
+         "private": r.get("private", False), "stars": r["stars"], "tier": r.get("complexity_tier", "unknown")}
         for r in repos[:8]
     ]
 
@@ -686,6 +849,8 @@ You have deep code-level analysis available — use it to be SPECIFIC and EVIDEN
 ## Languages: {json.dumps(dict(list(langs.items())[:8]))}
 ## Top projects: {json.dumps(top_projects, indent=2)}
 ## Code quality (0-10): {json.dumps(quality.get('scores', {}))}
+## Tech Stack Deep Extracted: {json.dumps(state.get('extracted_stack', []))}
+## Workflow/Collaboration: {state.get('workflow_analysis', {}).get('classification')}
 ## Code patterns observed:
 {patterns_str}
 ## Commit patterns (90d): {json.dumps(commit)}
@@ -735,6 +900,7 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
     repos_clean = [
         {
             "name": r["name"], "description": r["description"],
+            "private": r.get("private", False),
             "stars": r["stars"], "forks": r.get("forks", 0),
             "languages": r["languages"],
             "complexity_tier": r.get("complexity_tier", "unknown"),
@@ -742,7 +908,10 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
             "has_tests": r.get("has_tests", False),
             "topics": r.get("topics", []),
             "license": r.get("license"),
+            "pushed_at": r.get("pushed_at", ""),
             "dep_files": r.get("dep_files", []),
+            "total_commits": r.get("total_commits", 0),
+            "is_potentially_boilerplate": r.get("is_potentially_boilerplate", False),
         }
         for r in state["repos_deep"]
     ]
@@ -790,15 +959,22 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
         },
         "code_analysis": {
             "repos_with_code_review": code_summaries,
+            "crown_jewel_review": next(
+                ({"repo": s["repo_name"], "path": s["crown_jewel"]["path"], "size_kb": round(s["crown_jewel"]["size"]/1024, 1)} 
+                 for s in state.get("code_samples", []) if s.get("crown_jewel")), 
+                 None
+            ),
             "code_patterns": state.get("code_quality", {}).get("code_patterns_observed", []),
+            "tech_stack_extracted": state.get("extracted_stack", []),
         },
         "contributions": contribution_summary,
         "commit_patterns": state.get("commit_patterns", {}),
+        "workflow_analysis": state.get("workflow_analysis", {}),
         "code_quality": state.get("code_quality", {}).get("scores", {}),
         "code_quality_observations": state.get("code_quality", {}).get("notable_observations", []),
         "synthesis": state.get("synthesis", {}),
         "_meta": {
-            "agent_version": "4.0",
+            "agent_version": "5.0",
             "total_time_s": round(total_time, 1),
             "nodes_executed": len(trace),
             "nodes_failed": failed_nodes,
@@ -817,7 +993,7 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
         """,
         spid,
         json.dumps(final),
-        json.dumps({"username": state["username"], "agent_version": "4.0", "trace": trace}),
+        json.dumps({"username": state["username"], "agent_version": "5.0", "trace": trace}),
     )
 
     return {**state, "final_parsed": final}

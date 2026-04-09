@@ -37,7 +37,7 @@ def get_openai() -> AsyncOpenAI:
     return _openai_client
 
 
-def get_gemini_model(model_name: str = "gemini-2.0-flash") -> genai.GenerativeModel:
+def get_gemini_model(model_name: str = "gemini-3-flash-preview") -> genai.GenerativeModel:
     """Get a Gemini model, configuring API key once."""
     global _gemini_configured
     if not _gemini_configured:
@@ -51,7 +51,7 @@ def get_gemini_model(model_name: str = "gemini-2.0-flash") -> genai.GenerativeMo
 async def llm_json(
     prompt: str,
     *,
-    model: str = "gpt-4o-mini",
+    model: str = "gpt-5-mini",
     system: str | None = None,
     temperature: float = 0.3,
     fallback: dict | None = None,
@@ -95,7 +95,7 @@ async def llm_json(
 async def gemini_json(
     prompt: str,
     *,
-    model_name: str = "gemini-2.0-flash",
+    model_name: str = "gemini-3-flash-preview",
     fallback: Any = None,
     label: str = "gemini_call",
 ) -> Any:

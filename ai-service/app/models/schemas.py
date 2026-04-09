@@ -58,4 +58,5 @@ class IngestResumeRequest(BaseModel):
 
 class IngestLinkedInRequest(BaseModel):
     student_profile_id: str
-    linkedin_url: str
+    linkedin_url: Optional[str] = None       # for supplemental scraping
+    oauth_data: Optional[dict] = None        # structured data from LinkedIn OAuth + /v2/me

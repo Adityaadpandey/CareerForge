@@ -7,7 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "worker": "tsx src/lib/worker.ts"
+    "worker": "tsx src/lib/worker.ts",
+    "worker:ingestion": "WORKER_TYPE=ingestion tsx src/lib/worker.ts",
+    "worker:analysis": "WORKER_TYPE=analysis tsx src/lib/worker.ts",
+    "worker:jobs": "WORKER_TYPE=jobs tsx src/lib/worker.ts",
+    "workers:pm2": "pm2 start pm2.config.cjs",
+    "workers:pm2:dev": "pm2 start pm2.config.cjs --env development",
+    "workers:stop": "pm2 stop all",
+    "workers:reload": "pm2 reload pm2.config.cjs",
+    "workers:logs": "pm2 logs",
+    "workers:monit": "pm2 monit"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

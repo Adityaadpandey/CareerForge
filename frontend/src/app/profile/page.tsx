@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
+import { useSession, signIn as nextAuthSignIn } from "next-auth/react";
 import axios from "axios";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -21,7 +21,6 @@ import {
   XCircle,
   Loader2,
   Upload,
-  FileSymlink,
 } from "lucide-react";
 
 const profileSchema = z.object({
@@ -95,6 +94,12 @@ export default function ProfilePage() {
     queryFn: () => axios.get<Profile>("/api/profile").then((r) => r.data),
   });
 
+  const { data: linkedinStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ["linkedin-status"],
+    queryFn: () => axios.get("/api/profile/linkedin/status").then((r) => r.data),
+    staleTime: Infinity,
+  });
+
   const {
     register,
     handleSubmit,
@@ -161,7 +166,7 @@ export default function ProfilePage() {
     onError: () => toast.error("Failed to queue sync"),
   });
 
-  const linkedinMutation = useMutation({
+  const linkedinUrlMutation = useMutation({
     mutationFn: (url: string) =>
       axios.post("/api/profile/linkedin", { linkedinUrl: url }),
     onSuccess: () => {
@@ -170,8 +175,11 @@ export default function ProfilePage() {
       setLinkedinInput("");
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.error ?? "Failed to connect LinkedIn"),
+    onError: (err: unknown) =>
+      toast.error(
+        (err as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error ?? "Failed to connect LinkedIn"
+      ),
   });
 
   const resumeMutation = useMutation({
@@ -186,8 +194,8 @@ export default function ProfilePage() {
       toast.success("Resume upload queued — parsing with AI takes ~60 seconds");
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.error ?? "Resume upload failed"),
+    onError: (err: unknown) =>
+      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Resume upload failed"),
   });
 
   const handleResumeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -503,13 +511,27 @@ export default function ProfilePage() {
 
                     {/* Platform-specific action buttons */}
                     {platform === "LINKEDIN" ? (
-                      <button
-                        onClick={() => setShowLinkedinInput((v) => !v)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-500 hover:text-blue-400 hover:border-blue-500/30 text-xs transition-colors"
-                      >
-                        <FileSymlink className="w-3.5 h-3.5" />
-                        Connect
-                      </button>
+                      linkedinStatus?.configured ? (
+                        // OAuth flow (when LinkedIn app is configured)
+                        <button
+                          onClick={() =>
+                            nextAuthSignIn("linkedin", { callbackUrl: "/profile" })
+                          }
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-500 hover:text-blue-400 hover:border-blue-500/30 text-xs transition-colors"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                          {conn?.syncStatus === "DONE" ? "Re-sync" : "Connect"}
+                        </button>
+                      ) : (
+                        // URL fallback (when OAuth not configured)
+                        <button
+                          onClick={() => setShowLinkedinInput((v) => !v)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-500 hover:text-blue-400 hover:border-blue-500/30 text-xs transition-colors"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                          {conn?.syncStatus === "DONE" ? "Re-sync" : "Connect"}
+                        </button>
+                      )
                     ) : platform === "RESUME" ? (
                       <button
                         onClick={() => resumeInputRef.current?.click()}
@@ -535,34 +557,36 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* LinkedIn inline URL input */}
-                {platform === "LINKEDIN" && showLinkedinInput && (
-                  <div className="pb-3 flex gap-2">
-                    <input
-                      type="url"
-                      value={linkedinInput}
-                      onChange={(e) => setLinkedinInput(e.target.value)}
-                      placeholder="https://linkedin.com/in/yourname"
-                      className="flex-1 bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:border-blue-500/50 focus:outline-none"
-                    />
-                    <button
-                      onClick={() => {
-                        if (linkedinInput.trim())
-                          linkedinMutation.mutate(linkedinInput.trim());
-                      }}
-                      disabled={
-                        linkedinMutation.isPending || !linkedinInput.trim()
-                      }
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {linkedinMutation.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        "Sync"
-                      )}
-                    </button>
-                  </div>
-                )}
+                {/* LinkedIn URL input — shown when OAuth not configured */}
+                {platform === "LINKEDIN" &&
+                  !linkedinStatus?.configured &&
+                  showLinkedinInput && (
+                    <div className="pb-3 flex gap-2">
+                      <input
+                        type="url"
+                        value={linkedinInput}
+                        onChange={(e) => setLinkedinInput(e.target.value)}
+                        placeholder="https://linkedin.com/in/yourname"
+                        className="flex-1 bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:border-blue-500/50 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          if (linkedinInput.trim())
+                            linkedinUrlMutation.mutate(linkedinInput.trim());
+                        }}
+                        disabled={
+                          linkedinUrlMutation.isPending || !linkedinInput.trim()
+                        }
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {linkedinUrlMutation.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          "Sync"
+                        )}
+                      </button>
+                    </div>
+                  )}
               </div>
             );
           })}

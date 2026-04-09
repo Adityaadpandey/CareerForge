@@ -195,9 +195,12 @@ async def score_pillars(state: GapState) -> GapState:
             100,
         )
 
-    # ─── Communication (from code quality + resume writing quality) ───
+    # ─── Communication (from code quality + resume writing quality + linkedin) ───
     resume_data = state.get("resume_data", {})
+    linkedin_data = state.get("linkedin_data", {})
+    
     resume_comm_q = resume_data.get("communication_quality")  # 1-10 from GPT-4o resume parser
+    linkedin_tl_q = linkedin_data.get("thought_leadership_score")
 
     if code_quality and code_quality.get("readme_quality") is not None:
         readme_q = code_quality.get("readme_quality", 5) * 10
@@ -206,12 +209,20 @@ async def score_pillars(state: GapState) -> GapState:
     else:
         github_comm = 30.0
 
+    # Calculate blended score
+    components = [(github_comm, 0.40)]  # Base weight 40% for GH
+    
     if resume_comm_q and isinstance(resume_comm_q, (int, float)):
-        # Resume quality blended 40% (resume) / 60% (GitHub code docs)
-        resume_comm = min(float(resume_comm_q) * 10, 100)
-        comm = github_comm * 0.60 + resume_comm * 0.40
+        components.append((min(float(resume_comm_q) * 10, 100), 0.30))
     else:
-        comm = github_comm
+        components[0] = (components[0][0], components[0][1] + 0.30)
+        
+    if linkedin_tl_q and isinstance(linkedin_tl_q, (int, float)):
+        components.append((min(float(linkedin_tl_q) * 10, 100), 0.30))
+    else:
+        components[0] = (components[0][0], components[0][1] + 0.30)
+        
+    comm = sum(score * weight for score, weight in components)
 
     # ─── Consistency (from commit patterns) ───
     if commit_patterns and commit_patterns.get("unique_active_days_90d") is not None:
@@ -274,6 +285,16 @@ async def identify_gaps(state: GapState) -> GapState:
     if isinstance(contributions, dict) and contributions.get("merged_prs", 0) > 0:
         oss_str = f"\n- OSS contributions: {contributions['merged_prs']} merged PRs across {', '.join(contributions.get('oss_repos', [])[:5])}"
 
+    # V5 specific context
+    workflow = gh.get("workflow_analysis", {})
+    workflow_str = f"\n- Workflow: {workflow.get('classification', 'SOLO_HACKER')} (Own PR count: {workflow.get('own_pr_count', 0)})"
+
+    extracted_stack = code_analysis.get("tech_stack_extracted", []) if isinstance(code_analysis, dict) else []
+    stack_str = f"\n- Exact tech stack used: {json.dumps(extracted_stack)}" if extracted_stack else ""
+
+    cj = code_analysis.get("crown_jewel_review", {}) if isinstance(code_analysis, dict) else {}
+    cj_str = f"\n- Crown Jewel file: {cj.get('path')} ({cj.get('size_kb')} KB)" if cj else ""
+
     # Resume/LinkedIn context
     cross_platform_str = ""
     if resume_data:
@@ -284,6 +305,10 @@ async def identify_gaps(state: GapState) -> GapState:
         cross_platform_str += f"\n- LinkedIn skills: {json.dumps(linkedin_data.get('skills', [])[:10])}"
         if linkedin_data.get('headline'):
             cross_platform_str += f"\n- LinkedIn headline: {linkedin_data['headline']}"
+        if linkedin_data.get('network_engagement_tier'):
+            cross_platform_str += f"\n- LinkedIn Engagement Tier: {linkedin_data['network_engagement_tier']}"
+        if linkedin_data.get('recent_posts'):
+            cross_platform_str += f"\n- Recent Posts: {json.dumps(linkedin_data['recent_posts'][:5])}"
 
     result = await llm_json(
         prompt=f"""You are a career coach analyzing a student targeting: {target_role}
@@ -298,7 +323,7 @@ Developer profile:
 - Weaknesses: {json.dumps(synthesis.get('weaknesses', []))}
 - Code quality scores: {json.dumps(code_quality)}
 - Code patterns from actual source review: {patterns_str}
-- Improvement priorities: {json.dumps(synthesis.get('improvement_priorities', []))}{oss_str}{cross_platform_str}
+- Improvement priorities: {json.dumps(synthesis.get('improvement_priorities', []))}{oss_str}{workflow_str}{stack_str}{cj_str}{cross_platform_str}
 
 Identify the top 10 skill gaps for {target_role} role. For each gap:
 {{
@@ -311,7 +336,7 @@ Identify the top 10 skill gaps for {target_role} role. For each gap:
 Be SPECIFIC — reference their actual projects, code patterns, and cross-platform evidence. Don't give generic advice.
 
 Return JSON: {{ "gaps": [...], "strong": ["skill1", "skill2"] }}""",
-        model="gpt-4o",
+        model="gpt-5",
         temperature=0.4,
         fallback={"gaps": [], "strong": []},
         label="gap/identify",
