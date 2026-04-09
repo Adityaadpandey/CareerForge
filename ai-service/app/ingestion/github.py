@@ -7,7 +7,7 @@ from app.db.client import get_pool
 logger = logging.getLogger(__name__)
 
 
-async def ingest_github(student_profile_id: str, username: str) -> dict:
+async def ingest_github(student_profile_id: str, username: str, sync_type: str = "DEEP") -> dict:
     """Run the deep GitHub analysis agent and return parsed data."""
     pool = await get_pool()
 
@@ -39,6 +39,7 @@ async def ingest_github(student_profile_id: str, username: str) -> dict:
                 "github-agent",
                 student_profile_id=student_profile_id,
                 username=username,
+                sync_type=sync_type,
                 profile={},
                 repos_deep=[],
                 lang_totals={},

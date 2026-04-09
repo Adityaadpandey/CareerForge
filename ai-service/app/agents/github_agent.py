@@ -61,9 +61,11 @@ ENTRY_POINTS = [
 ]
 # Config/infra files that reveal architecture
 CONFIG_FILES = [
-    "docker-compose.yml", "docker-compose.yaml", ".github/workflows/ci.yml",
-    "Makefile", "tsconfig.json", "next.config.js", "next.config.ts",
-    "vite.config.ts", "webpack.config.js", ".eslintrc.json", ".prettierrc",
+    "docker-compose.yml", "docker-compose.yaml", "Dockerfile", 
+    ".github/workflows/main.yml", ".github/workflows/ci.yml", ".github/workflows/deploy.yml",
+    "Makefile", ".gitlab-ci.yml", "kubernetes.yaml", "k8s.yaml",
+    "tsconfig.json", "next.config.js", "next.config.ts",
+    "vite.config.ts", "webpack.config.js",
     "package.json", "requirements.txt", "Cargo.toml", "go.mod", "pom.xml"
 ]
 MAX_FILE_SIZE = 3000  # chars per source file
@@ -75,6 +77,7 @@ CROWN_JEWEL_MAX_SIZE = 15000  # allow larger file for the crown jewel review
 class GitHubAgentState(TypedDict):
     student_profile_id: str
     username: str
+    sync_type: str
     _agent_name: str
     _trace: list[dict]
     _started_at: float
@@ -1002,6 +1005,9 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
 # ─── CONDITIONAL ROUTING ────────────────────────────────────────
 
 def should_run_llm(state: GitHubAgentState) -> str:
+    if state.get("sync_type") == "SHALLOW":
+        return "write_results"
+    
     repos = state.get("repos_deep", [])
     if len(repos) < MIN_REPOS_FOR_LLM:
         return "write_results"
@@ -1024,15 +1030,15 @@ def build_github_agent():
 
     g.set_entry_point("fetch_profile")
     g.add_edge("fetch_profile", "fetch_repos_deep")
+    g.add_edge("fetch_repos_deep", "fetch_contributions")
 
-    # Conditional: enough repos? → deep analysis : skip
-    g.add_conditional_edges("fetch_repos_deep", should_run_llm, {
+    # Conditional: fast sync or not enough repos? → skip deep code tools
+    g.add_conditional_edges("fetch_contributions", should_run_llm, {
         "fetch_code_deep": "fetch_code_deep",
         "write_results": "write_results",
     })
 
-    g.add_edge("fetch_code_deep", "fetch_contributions")
-    g.add_edge("fetch_contributions", "fetch_commit_patterns")
+    g.add_edge("fetch_code_deep", "fetch_commit_patterns")
     g.add_edge("fetch_commit_patterns", "analyze_code_quality")
     g.add_edge("analyze_code_quality", "synthesize_profile")
     g.add_edge("synthesize_profile", "write_results")

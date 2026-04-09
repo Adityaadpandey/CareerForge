@@ -5,6 +5,7 @@ from typing import Optional
 class IngestGithubRequest(BaseModel):
     student_profile_id: str
     username: str
+    sync_type: str = "DEEP"
 
 
 class IngestLeetcodeRequest(BaseModel):

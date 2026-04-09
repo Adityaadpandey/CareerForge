@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { enqueueIngestion } from "@/lib/queue";
 import { redis } from "@/lib/redis";
+import { aiClient } from "@/lib/ai-client";
+
+const DIRECT_IN_DEV = process.env.NODE_ENV !== "production";
 
 export async function POST(req: NextRequest) {
   // 1. Auth
@@ -116,9 +119,23 @@ export async function POST(req: NextRequest) {
     const ingestionJobs = [
       enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: githubLogin }),
     ];
+    const directIngestionCalls: Array<() => Promise<unknown>> = [
+      () => aiClient.post(
+        "/ingest/github",
+        { student_profile_id: profile.id, username: githubLogin },
+        { timeout: 600_000 },
+      ),
+    ];
     if (leetcodeHandle) {
       ingestionJobs.push(
         enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: leetcodeHandle })
+      );
+      directIngestionCalls.push(
+        () => aiClient.post(
+          "/ingest/leetcode",
+          { student_profile_id: profile.id, handle: leetcodeHandle },
+          { timeout: 120_000 },
+        )
       );
     }
 
@@ -135,6 +152,13 @@ export async function POST(req: NextRequest) {
       });
       ingestionJobs.push(
         enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl })
+      );
+      directIngestionCalls.push(
+        () => aiClient.post(
+          "/ingest/linkedin",
+          { student_profile_id: profile.id, linkedin_url: linkedinUrl },
+          { timeout: 180_000 },
+        )
       );
     } else {
       // LinkedIn: OAuth path — check if user linked LinkedIn account during onboarding
@@ -158,12 +182,33 @@ export async function POST(req: NextRequest) {
             },
           })
         );
+        directIngestionCalls.push(
+          () => aiClient.post(
+            "/ingest/linkedin",
+            {
+              student_profile_id: profile.id,
+              oauth_data: {
+                access_token: linkedinAccount.access_token,
+                provider_account_id: linkedinAccount.providerAccountId,
+              },
+            },
+            { timeout: 180_000 },
+          )
+        );
       }
     }
 
     // Set Redis counter so the worker knows how many ingestion jobs to wait for
     await redis.set(`pending_ingestion:${profile.id}`, ingestionJobs.length, "EX", 3600);
     await Promise.allSettled(ingestionJobs);
+
+    if (DIRECT_IN_DEV) {
+      for (const run of directIngestionCalls) {
+        void run().catch((err: unknown) => {
+          console.warn("[connect] direct ingest failed (non-fatal):", err);
+        });
+      }
+    }
   } catch (err) {
     console.warn("[connect] queue/connections error (non-fatal):", err);
   }

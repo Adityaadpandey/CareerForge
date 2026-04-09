@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { aiClient } from "@/lib/ai-client";
 import { enqueueIngestion } from "@/lib/queue";
 import { redis } from "@/lib/redis";
+const DIRECT_IN_DEV = process.env.NODE_ENV !== "production";
 
 /**
  * POST /api/profile/resume
@@ -63,6 +64,19 @@ export async function POST(req: NextRequest) {
     const key = `pending_ingestion:${profile.id}`;
     await redis.incr(key);
     await redis.expire(key, 3600);
+
+    if (DIRECT_IN_DEV) {
+      void aiClient
+        .post(
+          "/ingest/resume",
+          { student_profile_id: profile.id, pdf_b64: pdfB64 },
+          { timeout: 180_000 },
+        )
+        .catch((err: unknown) => {
+          console.warn("[resume-upload] direct ingest failed:", err);
+        });
+    }
+
     return NextResponse.json({ status: "queued" });
   } catch (queueErr) {
     console.warn("[resume-upload] BullMQ queue failed, falling back to direct AI call:", queueErr);

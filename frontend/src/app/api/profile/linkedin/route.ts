@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { enqueueIngestion } from "@/lib/queue";
 import { redis } from "@/lib/redis";
 import { aiClient } from "@/lib/ai-client";
+const DIRECT_IN_DEV = process.env.NODE_ENV !== "production";
 
 /**
  * POST /api/profile/linkedin
@@ -62,6 +63,19 @@ export async function POST(req: NextRequest) {
     const key = `pending_ingestion:${profile.id}`;
     await redis.incr(key);
     await redis.expire(key, 3600);
+
+    if (DIRECT_IN_DEV) {
+      void aiClient
+        .post(
+          "/ingest/linkedin",
+          { student_profile_id: profile.id, linkedin_url: linkedinUrl },
+          { timeout: 180_000 },
+        )
+        .catch((err: unknown) => {
+          console.warn("[linkedin-connect] direct ingest failed:", err);
+        });
+    }
+
     return NextResponse.json({ status: "queued" });
   } catch (queueErr) {
     console.warn("[linkedin-connect] BullMQ queue failed, falling back to direct AI call:", queueErr);

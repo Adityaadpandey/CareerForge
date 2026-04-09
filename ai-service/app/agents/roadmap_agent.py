@@ -106,8 +106,9 @@ Skill gaps to address: {json.dumps(top_gaps)}
 Timeline: {weeks} weeks, {hours} hrs/week available
 
 Rules:
-- Each mission must be a DELIVERABLE (build/produce something), not "study X"
-- Mix of BUILD (project), SOLVE (DSA practice), COMMUNICATE (blog/writeup) types
+- Each mission must be a professional-grade DELIVERABLE (e.g. build an auth service, implement a custom orchestrator, write an architecture RFC). NEVER suggest "doing a tutorial" or "reading a book" as a mission.
+- Avoid beginner/junior terminology. Act as a Staff Engineer assigning concrete technical tickets to an engineer.
+- Mix of BUILD (project), SOLVE (algorithm/system design), COMMUNICATE (tech spec/RFC) types
 - Order from foundational to advanced
 - Must be completable in 5-25 hours each
 
@@ -177,14 +178,22 @@ async def attach_resources(state: RoadmapState) -> RoadmapState:
 
     async def get_resources_for(mission: dict) -> list[dict]:
         result = await gemini_json(
-            prompt=f"""Find 3 specific, real learning resources for this mission:
+            prompt=f"""You are a Senior Staff Engineer curating exact, high-signal technical resources for a developer.
+Your goal is to provide resources that ACTUALLY level up a developer. DO NOT provide basic "kidish" tutorials (like W3Schools, GeeksForGeeks generic pages, or "Learn X in 10 mins" videos).
+Instead, provide:
+1. High-quality engineering blogs (e.g., Cloudflare, Uber, Netflix tech blogs)
+2. Official advanced documentation or architectural deep-dives
+3. High-quality GitHub repositories or reputable system design case studies
+4. O'Reilly book chapters or advanced conference talks (e.g., StrangeLoop, InfoQ)
+
+Mission Details:
 Title: {mission['title']}
 Description: {mission['description']}
 
-Return exactly 3 resources as JSON array:
-[{{"title": "...", "url": "https://...", "type": "article|video|course|docs"}}]
+Return EXACTLY 3 world-class resources as a JSON array:
+[{{"title": "...", "url": "https://...", "type": "article|video|course|docs|repo"}}]
 
-Only return real, existing URLs. Prefer free resources.""",
+Only return real, existing URLs. They must be directly actionable for this mission!""",
             fallback=[],
             label=f"roadmap/resources/{mission.get('title', 'unknown')[:30]}",
         )

@@ -127,6 +127,11 @@ function startIngestionWorker() {
     defaultJobOptions: defaultJobOpts,
   });
 
+  const ingestionQueue = new Queue(QUEUES.INGESTION, {
+    connection: makeConn("ingestion→ingestion-queue"),
+    defaultJobOptions: defaultJobOpts,
+  });
+
   const worker = new Worker<IngestionJob>(
     QUEUES.INGESTION,
     async (job) => {
@@ -141,11 +146,30 @@ function startIngestionWorker() {
         let result: unknown;
         switch (job.data.type) {
           case "GITHUB":
+            const syncType = (job.data as any).syncType ?? "SHALLOW";
             // GitHub analysis can take 5-10 min for large profiles (80+ repos)
             result = await callAI("/ingest/github", {
               student_profile_id: sid,
               username: job.data.username,
-            }, 600_000);
+              sync_type: syncType,
+            }, syncType === "DEEP" ? 600_000 : 60_000);
+
+            if (syncType === "SHALLOW") {
+               console.log(`${label} Shallow sync complete. Queuing DEEP background sync.`);
+               await ingestionQueue.add(
+                 "GITHUB",
+                 { type: "GITHUB", studentProfileId: sid, username: job.data.username, syncType: "DEEP" },
+                 { ...defaultJobOpts, jobId: `github-deep-${sid}` }
+               );
+            } else if (syncType === "DEEP") {
+               // Re-trigger GAP_ANALYSIS when deep sync finishes, so the AI has the full DevOps picture
+               console.log(`${label} Deep sync complete. Re-queuing GAP_ANALYSIS.`);
+               await analysisQueue.add(
+                 "GAP_ANALYSIS",
+                 { type: "GAP_ANALYSIS", studentProfileId: sid },
+                 { ...defaultJobOpts, jobId: `gap-deep-${sid}` }
+               );
+            }
             break;
           case "LEETCODE":
             result = await callAI("/ingest/leetcode", {

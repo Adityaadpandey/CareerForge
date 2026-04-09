@@ -25,7 +25,7 @@ export function getQueue(name: QueueName): Queue {
 
 // Typed job payloads
 export type IngestionJob =
-  | { type: "GITHUB"; studentProfileId: string; username: string }
+  | { type: "GITHUB"; studentProfileId: string; username: string; syncType?: "SHALLOW" | "DEEP" }
   | { type: "LEETCODE"; studentProfileId: string; handle: string }
   | { type: "RESUME"; studentProfileId: string; fileKey: string }
   | { type: "LINKEDIN"; studentProfileId: string; linkedinUrl?: string; oauth_data?: { access_token: string; provider_account_id: string } };

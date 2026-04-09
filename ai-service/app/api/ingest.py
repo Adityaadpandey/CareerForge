@@ -123,9 +123,14 @@ async def _do_pipeline(student_profile_id: str) -> None:
 
 @router.post("/github")
 async def ingest_github_endpoint(req: IngestGithubRequest, background_tasks: BackgroundTasks):
-    result = await ingest_github(req.student_profile_id, req.username)
+    result = await ingest_github(req.student_profile_id, req.username, req.sync_type)
     # BackgroundTasks runs AFTER the response is sent, managed by Starlette (more reliable than create_task)
-    background_tasks.add_task(_run_analysis_pipeline, req.student_profile_id)
+    
+    # We only run the full analysis pipeline if it's a DEEP sync. 
+    # For SHALLOW sync, we defer the analysis until the backend finishes the DEEP sync.
+    if req.sync_type == "DEEP":
+        background_tasks.add_task(_run_analysis_pipeline, req.student_profile_id)
+        
     return {"status": "done", "data": result}
 
 
