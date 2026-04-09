@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,361 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── AUTH ────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  role          UserRole  @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  profile       StudentProfile?
+  adminProfile  AdminProfile?
+  notifications Notification[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  access_token      String? @db.Text
+  refresh_token     String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum UserRole {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+// ─── STUDENT PROFILE ─────────────────────────────────────────
+
+model StudentProfile {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  universityId     String?
+  department       String?
+  graduationYear   Int?
+  githubUsername   String?
+  leetcodeHandle   String?
+  codeforcesHandle String?
+  linkedinUrl      String?
+  targetRole       String?
+  dreamCompanies   String[]
+  timelineWeeks    Int?
+  hoursPerWeek     Int?
+  segment          Segment   @default(UNASSESSED)
+  streakDays       Int       @default(0)
+  lastActiveAt     DateTime?
+  onboardingDone   Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id])
+  university          University?          @relation(fields: [universityId], references: [id])
+  platformConnections PlatformConnection[]
+  readinessScores     ReadinessScore[]
+  missions            Mission[]
+  interviewSessions   InterviewSession[]
+  applications        Application[]
+  savedJobs           SavedJob[]
+}
+
+enum Segment {
+  UNASSESSED
+  RISING_STAR
+  CAPABLE
+  AT_RISK
+  CRITICAL
+}
+
+// ─── READINESS SCORE ─────────────────────────────────────────
+
+model ReadinessScore {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  totalScore       Float
+  dsaScore         Float
+  devScore         Float
+  commScore        Float
+  consistencyScore Float
+  weakTopics       String[]
+  gapAnalysis      Json
+  createdAt        DateTime @default(now())
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+}
+
+// ─── PLATFORM CONNECTIONS ────────────────────────────────────
+
+model PlatformConnection {
+  id               String     @id @default(cuid())
+  studentProfileId String
+  platform         Platform
+  lastSyncedAt     DateTime?
+  syncStatus       SyncStatus @default(PENDING)
+  rawData          Json?
+  parsedData       Json?
+  errorMessage     String?
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([studentProfileId, platform])
+}
+
+enum Platform {
+  GITHUB
+  LEETCODE
+  CODEFORCES
+  LINKEDIN
+  RESUME
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  DONE
+  FAILED
+}
+
+// ─── MISSIONS (ROADMAP) ──────────────────────────────────────
+
+model Mission {
+  id               String        @id @default(cuid())
+  studentProfileId String
+  type             MissionType
+  title            String
+  description      String        @db.Text
+  status           MissionStatus @default(LOCKED)
+  resources        Json
+  estimatedHours   Int
+  deadline         DateTime?
+  orderIndex       Int
+  completedAt      DateTime?
+  prerequisiteIds  String[]
+
+  studentProfile StudentProfile     @relation(fields: [studentProfileId], references: [id])
+  interviews     InterviewSession[]
+}
+
+enum MissionType {
+  BUILD
+  SOLVE
+  COMMUNICATE
+}
+
+enum MissionStatus {
+  LOCKED
+  AVAILABLE
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+// ─── INTERVIEW SESSIONS ──────────────────────────────────────
+
+model InterviewSession {
+  id               String          @id @default(cuid())
+  studentProfileId String
+  missionId        String?
+  interviewType    InterviewType
+  status           InterviewStatus @default(IN_PROGRESS)
+  transcript       Json
+  debrief          Json?
+  sentimentScores  Json?
+  overallScore     Float?
+  createdAt        DateTime        @default(now())
+  completedAt      DateTime?
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  mission        Mission?       @relation(fields: [missionId], references: [id])
+}
+
+enum InterviewType {
+  TECHNICAL
+  SYSTEM_DESIGN
+  BEHAVIORAL
+  MIXED
+}
+
+enum InterviewStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+// ─── JOBS & APPLICATIONS ─────────────────────────────────────
+
+model Job {
+  id               String    @id @default(cuid())
+  externalId       String?
+  title            String
+  company          String
+  location         String?
+  isRemote         Boolean   @default(false)
+  source           JobSource
+  requirementsText String    @db.Text
+  requirementsTags String[]
+  applyUrl         String
+  salaryMin        Int?
+  salaryMax        Int?
+  postedAt         DateTime?
+  deadline         DateTime?
+  scrapedAt        DateTime  @default(now())
+
+  applications Application[]
+  savedBy      SavedJob[]
+}
+
+enum JobSource {
+  LINKEDIN
+  WELLFOUND
+  NAUKRI
+  INTERNSHALA
+  JSEARCH
+  DIRECT
+}
+
+model Application {
+  id               String            @id @default(cuid())
+  studentProfileId String
+  jobId            String
+  matchScore       Float
+  status           ApplicationStatus @default(DRAFT)
+  cvGenerated      String?           @db.Text
+  coverLetter      String?           @db.Text
+  appliedAt        DateTime?
+  responseAt       DateTime?
+  notes            String?
+  createdAt        DateTime          @default(now())
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  job            Job            @relation(fields: [jobId], references: [id])
+
+  @@unique([studentProfileId, jobId])
+}
+
+enum ApplicationStatus {
+  DRAFT
+  APPLIED
+  VIEWED
+  INTERVIEWING
+  OFFERED
+  REJECTED
+  WITHDRAWN
+}
+
+model SavedJob {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  jobId            String
+  savedAt          DateTime @default(now())
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+  job            Job            @relation(fields: [jobId], references: [id])
+
+  @@unique([studentProfileId, jobId])
+}
+
+// ─── UNIVERSITY / TPC ────────────────────────────────────────
+
+model University {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String?
+  city      String?
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+
+  students AdminProfile[]
+  profiles StudentProfile[]
+  drives   CompanyDrive[]
+}
+
+model AdminProfile {
+  id           String @id @default(cuid())
+  userId       String @unique
+  universityId String
+
+  user       User       @relation(fields: [userId], references: [id])
+  university University @relation(fields: [universityId], references: [id])
+}
+
+model CompanyDrive {
+  id           String   @id @default(cuid())
+  universityId String
+  companyName  String
+  roles        String[]
+  driveDate    DateTime
+  eligibility  Json
+  createdAt    DateTime @default(now())
+
+  university University @relation(fields: [universityId], references: [id])
+}
+
+enum Plan {
+  FREE
+  STARTER
+  ENTERPRISE
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  actionUrl String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+enum NotificationType {
+  MISSION_AVAILABLE
+  INTERVIEW_READY
+  JOB_MATCH
+  RISK_FLAG
+  STREAK_BROKEN
+  ROADMAP_UPDATED
+  OFFER_RECEIVED
 }
