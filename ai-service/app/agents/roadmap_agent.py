@@ -113,7 +113,7 @@ Rules:
 
 Return JSON:
 {{
-  "missions": [
+  "missions": [gpt-5.4-mini-2026-03-17
     {{
       "type": "BUILD|SOLVE|COMMUNICATE",
       "title": "...",
@@ -124,7 +124,7 @@ Return JSON:
     }}
   ]
 }}""",
-        model="gpt-4o",
+        model="gpt-5.4-mini-2026-03-17",
         temperature=0.5,
         fallback={"missions": []},
         label="roadmap/missions",

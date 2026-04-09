@@ -117,7 +117,7 @@ async def extract_skills(state: GapState) -> GapState:
         if top_projects:
             result = await llm_json(
                 prompt=f"Extract a list of technical skills from these GitHub projects.\nProjects: {json.dumps(top_projects[:3])}\nReturn JSON: {{\"skills\": [\"skill1\", \"skill2\"]}}. Max 15 skills.",
-                model="gpt-4o-mini",
+                model="gpt-5.4-mini-2026-03-17-mini",
                 fallback={"skills": []},
                 label="gap/extract_skills",
             )
@@ -198,8 +198,8 @@ async def score_pillars(state: GapState) -> GapState:
     # ─── Communication (from code quality + resume writing quality + linkedin) ───
     resume_data = state.get("resume_data", {})
     linkedin_data = state.get("linkedin_data", {})
-    
-    resume_comm_q = resume_data.get("communication_quality")  # 1-10 from GPT-4o resume parser
+
+    resume_comm_q = resume_data.get("communication_quality")  # 1-10 from gpt-5.4 resume parser
     linkedin_tl_q = linkedin_data.get("thought_leadership_score")
 
     if code_quality and code_quality.get("readme_quality") is not None:
@@ -211,17 +211,17 @@ async def score_pillars(state: GapState) -> GapState:
 
     # Calculate blended score
     components = [(github_comm, 0.40)]  # Base weight 40% for GH
-    
+
     if resume_comm_q and isinstance(resume_comm_q, (int, float)):
         components.append((min(float(resume_comm_q) * 10, 100), 0.30))
     else:
         components[0] = (components[0][0], components[0][1] + 0.30)
-        
+
     if linkedin_tl_q and isinstance(linkedin_tl_q, (int, float)):
         components.append((min(float(linkedin_tl_q) * 10, 100), 0.30))
     else:
         components[0] = (components[0][0], components[0][1] + 0.30)
-        
+
     comm = sum(score * weight for score, weight in components)
 
     # ─── Consistency (from commit patterns) ───

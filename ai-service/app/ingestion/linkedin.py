@@ -62,12 +62,12 @@ async def _scrape_linkedin_page(url: str) -> str:
         async with httpx.AsyncClient(headers=_HEADERS, follow_redirects=True, timeout=15.0) as client:
             main_text = await fetch_url(client, url)
             activity_text = await fetch_url(client, activity_url)
-            
+
             if main_text:
                 combined_text += f"--- MAIN PROFILE ---\n{main_text}\n"
             if activity_text:
                 combined_text += f"\n--- RECENT ACTIVITY ---\n{activity_text}\n"
-                
+
             return combined_text
     except Exception as e:
         logger.warning(f"[linkedin] Scrape client error: {e}")
@@ -85,7 +85,7 @@ async def ingest_linkedin(
     Priority order:
     1. oauth_data   — verified data from LinkedIn OAuth + /v2/me API (best quality)
     2. linkedin_url — supplemental scrape to fill in what OAuth doesn't provide
-    3. GPT-4o       — synthesizes everything into a structured profile
+    3. gpt-5.4       — synthesizes everything into a structured profile
     """
     pool = await get_pool()
 
@@ -134,7 +134,7 @@ async def ingest_linkedin(
             else:
                 logger.info(f"[linkedin] Scrape returned nothing (likely blocked)")
 
-        # ── Step 3: GPT-4o synthesis ────────────────────────────────────────
+        # ── Step 3: gpt-5.4 synthesis ────────────────────────────────────────
         prompt = f"""You are a LinkedIn profile parser. Extract structured career information.
 
 {oauth_context}
@@ -168,7 +168,7 @@ Return ONLY valid JSON:
       "duration": "Jan 2023 – Present",
       "months": 12,
       "description": "key responsibilities"
-    }}
+    }}gpt-5.4-mini-2026-03-17
   ],
   "education": [
     {{
@@ -191,7 +191,7 @@ For thought_leadership_score, rate 1-10 based on the quality and professionalism
 """
 
         res = await _get_client().chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini-2026-03-17",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )

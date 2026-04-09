@@ -437,20 +437,20 @@ async def fetch_code_deep(state: GitHubAgentState) -> GitHubAgentState:
             files_by_size = []
             valid_exts = {".ts", ".tsx", ".py", ".go", ".rs", ".java", ".cpp", ".c", ".rb"}
             ignore_dirs = {"node_modules/", "vendor/", "dist/", "build/", "test", "spec", "mock", ".min."}
-            
+
             for item in tree.tree:
                 depth = item.path.count("/")
                 if depth < 3:
                     prefix = "📁 " if item.type == "tree" else "📄 "
                     paths.append(f"{prefix}{item.path}")
-                
+
                 if item.type == "blob" and any(item.path.endswith(ext) for ext in valid_exts):
                     if not any(ignore in item.path for ignore in ignore_dirs):
                         files_by_size.append(item)
-            
+
             sample["dir_tree"] = paths[:100]
             logger.info(f"[github-agent] Tree for {repo_data['name']}: {len(sample['dir_tree'])} entries")
-            
+
             # Crown Jewel extraction
             files_by_size.sort(key=lambda x: x.size, reverse=True)
             if files_by_size:
@@ -485,7 +485,7 @@ async def fetch_code_deep(state: GitHubAgentState) -> GitHubAgentState:
             if content:
                 sample["config_files"][path] = content
                 configs_fetched += 1
-                
+
                 # Tech Stack Extraction (AST-lite)
                 if path == "package.json":
                     try:
@@ -763,7 +763,7 @@ You have access to their actual source code, directory structures, and commit di
 Score each 0-10 with specific evidence:
 1. **readme_quality** — Documentation clarity and completeness
 2. **architecture_maturity** — Evaluate the dir tree AND the Crown Jewel file. Do they separate concerns or dump it all together?
-3. **tech_sophistication** — Based on the exact extracted stack and Crown Jewel contents. 
+3. **tech_sophistication** — Based on the exact extracted stack and Crown Jewel contents.
 4. **code_style** — Variables, types, error handling visible in the Crown Jewel code.
 5. **testing_adoption** — Test configs, imports
 6. **ci_cd_adoption** — Workflows
@@ -778,7 +778,7 @@ Return JSON:
   "code_patterns_observed": ["pattern1: specific evidence", "pattern2: specific evidence"],
   "notable_observations": ["observation with specific code references"]
 }}""",
-        model="gpt-4o-mini",
+        model="gpt-5.4-mini-2026-03-17-mini",
         temperature=0.3,
         fallback=_default_quality_scores(),
         label="github/code_quality_deep",
@@ -871,7 +871,7 @@ Return JSON:
   "improvement_priorities": [{{"area": "...", "action": "specific advice referencing their code", "impact": "high|medium|low"}}],
   "interview_topics": ["topic based on their actual project experience"]
 }}""",
-        model="gpt-4o-mini",
+        model="gpt-5.4-mini-2026-03-17-mini",
         temperature=0.4,
         fallback={
             "summary": f"GitHub profile analysis for {state['username']} — synthesis unavailable.",
@@ -960,8 +960,8 @@ async def write_results(state: GitHubAgentState) -> GitHubAgentState:
         "code_analysis": {
             "repos_with_code_review": code_summaries,
             "crown_jewel_review": next(
-                ({"repo": s["repo_name"], "path": s["crown_jewel"]["path"], "size_kb": round(s["crown_jewel"]["size"]/1024, 1)} 
-                 for s in state.get("code_samples", []) if s.get("crown_jewel")), 
+                ({"repo": s["repo_name"], "path": s["crown_jewel"]["path"], "size_kb": round(s["crown_jewel"]["size"]/1024, 1)}
+                 for s in state.get("code_samples", []) if s.get("crown_jewel")),
                  None
             ),
             "code_patterns": state.get("code_quality", {}).get("code_patterns_observed", []),

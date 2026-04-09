@@ -128,11 +128,11 @@ Keep it under 250 words. Professional but genuine tone.
 
     cv_res, cl_res = await asyncio.gather(
         get_client().chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini-2026-03-17",
             messages=[{"role": "user", "content": cv_prompt}],
         ),
         get_client().chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini-2026-03-17",
             messages=[{"role": "user", "content": cl_prompt}],
         ),
     )

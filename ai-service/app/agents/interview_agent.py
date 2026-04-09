@@ -95,7 +95,7 @@ async def _score_answer(question: str, answer: str) -> dict | None:
 
     result = await llm_json(
         prompt=f'Question: {question}\nAnswer: {answer}\n\nScore this interview answer.\nReturn JSON: {{"accuracy": 0-10, "depth": 0-10, "clarity": 0-10, "overall": 0-10}}',
-        model="gpt-4o-mini",
+        model="gpt-5.4-mini-2026-03-17-mini",
         temperature=0.2,
         fallback=None,
         label="interview/score",
@@ -133,7 +133,7 @@ async def _generate_response(state: SessionState) -> SessionState:
     try:
         client = get_openai()
         res = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini-2026-03-17",
             messages=[
                 {"role": "system", "content": system},
                 *history,
@@ -205,7 +205,7 @@ Return JSON:
   "key_phrase_to_practice": "a specific phrase or concept to work on",
   "one_insight": "the single most important takeaway"
 }}""",
-        model="gpt-4o",
+        model="gpt-5.4-mini-2026-03-17",
         temperature=0.4,
         fallback={"strong_zones": [], "weak_zones": [], "key_phrase_to_practice": "", "one_insight": ""},
         label="interview/debrief",

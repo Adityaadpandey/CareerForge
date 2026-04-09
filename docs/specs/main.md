@@ -85,7 +85,7 @@ These are what make this "agentic" — each fires without the user prompting it:
 | Framework               | FastAPI                        | 0.115.x | Async, fast, auto OpenAPI docs              |
 | Language                | Python                         | 3.12    | AI ecosystem is Python-native               |
 | Agent Framework         | LangGraph                      | 0.2.x   | Stateful multi-step agent loops             |
-| LLM — General           | OpenAI GPT-4o                  | latest  | Gap analysis, roadmap, CV generation        |
+| LLM — General           | OpenAI gpt-5.4                 | latest  | Gap analysis, roadmap, CV generation        |
 | LLM — Realtime/Research | Google Gemini 2.0 Flash        | latest  | Interview probing, job research, fast tasks |
 | Embeddings              | OpenAI text-embedding-3-small  | latest  | Job matching, semantic similarity           |
 | PDF Parsing             | pdfplumber                     | 0.11.x  | Resume text extraction                      |
@@ -887,7 +887,7 @@ Step 5: Timeline + hours/week available
 
 ```python
 # 1. pdfplumber extracts raw text
-# 2. GPT-4o parses into structured JSON:
+# 2. gpt-5.4 parses into structured JSON:
 {
   "skills": ["Python", "FastAPI", "PostgreSQL"],
   "experience_years": 0,
@@ -905,7 +905,7 @@ Status updates written so frontend can poll `/api/onboarding/status`.
 
 ### M3: Gap Analysis & Roadmap Engine
 
-**Stack:** LangGraph, OpenAI GPT-4o, text-embedding-3-small, Python
+**Stack:** LangGraph, OpenAI gpt-5.4, text-embedding-3-small, Python
 
 **LangGraph Graph: `GapAnalyzerGraph`**
 
@@ -965,7 +965,7 @@ total = 0.30*dsa + 0.30*dev + 0.20*comm + 0.20*consistency
 Nodes:
   load_gaps          → reads latest ReadinessScore.gapAnalysis
   prioritize         → sorts gaps by (importance × (1 - student_current_level))
-  generate_missions  → GPT-4o generates 6-8 missions from top gaps
+  generate_missions  → gpt-5.4 generates 6-8 missions from top gaps
   attach_resources   → Gemini Flash searches for 3-5 resources per mission
   set_deadlines      → distributes missions across timeline_weeks
   write_missions     → upserts Mission rows, preserves completed ones
@@ -973,7 +973,7 @@ Nodes:
 Edges: linear chain
 ```
 
-**Mission Generation Prompt (GPT-4o):**
+**Mission Generation Prompt (gpt-5.4):**
 
 ```
 You are a career coach. Given these skill gaps: {gaps}
@@ -999,7 +999,7 @@ Missions must be ordered: foundational gaps first, advanced last.
 
 ### M4: Mock Interview Agent
 
-**Stack:** LangGraph, OpenAI GPT-4o (interview conductor), Gemini Flash (fast probing),
+**Stack:** LangGraph, OpenAI gpt-5.4 (interview conductor), Gemini Flash (fast probing),
 optional sentiment via ai-video-sentiment-model
 
 **Interview State Machine (LangGraph):**
@@ -1021,7 +1021,7 @@ Transitions:
   CLOSING → DEBRIEF
 ```
 
-**Answer Scoring (GPT-4o side-call, fast):**
+**Answer Scoring (gpt-5.4 side-call, fast):**
 
 ```python
 # For each student message, run this in parallel with returning response:
@@ -1067,7 +1067,7 @@ Frontend sends webcam frame (base64) every 5 seconds via:
 
 ### M5: Job Pipeline
 
-**Stack:** ApplyPilot (adapted), FastAPI, OpenAI GPT-4o, text-embedding-3-small
+**Stack:** ApplyPilot (adapted), FastAPI, OpenAI gpt-5.4, text-embedding-3-small
 
 **Phase 1 — Job Discovery (adapted from ApplyPilot):**
 
@@ -1093,19 +1093,19 @@ Frontend sends webcam frame (base64) every 5 seconds via:
 # Threshold: only show jobs with match_score > 45
 ```
 
-**Phase 3 — CV + Cover Letter Generation (GPT-4o):**
+**Phase 3 — CV + Cover Letter Generation (gpt-5.4):**
 
 ```python
 # CV generation:
 # 1. Take student's base parsed resume
 # 2. Extract JD keywords: required skills, action verbs, domain terms
-# 3. GPT-4o rewrites experience bullets to mirror JD language
+# 3. gpt-5.4 rewrites experience bullets to mirror JD language
 # 4. Reorders skills section to lead with most-relevant
 # Output: Markdown → rendered as PDF via WeasyPrint
 
 # Cover letter:
 # Inputs: company name, role, student top 3 relevant projects, JD summary
-# GPT-4o writes 3-paragraph letter: hook → relevant experience → why company
+# gpt-5.4 writes 3-paragraph letter: hook → relevant experience → why company
 # Cover letter is specific — references something real about the company
 ```
 
@@ -1197,14 +1197,14 @@ for (const p of profiles) {
 
 | Task                            | Model                  | Why                                                      |
 | ------------------------------- | ---------------------- | -------------------------------------------------------- |
-| Gap analysis                    | GPT-4o                 | Long context, structured JSON output, nuanced reasoning  |
-| Roadmap generation              | GPT-4o                 | Complex mission structuring needs depth                  |
-| Interview conductor             | GPT-4o                 | Needs to maintain context across 10+ turns               |
-| Answer scoring (fast)           | GPT-4o-mini            | High frequency, needs to be cheap and fast               |
+| Gap analysis                    | gpt-5.4                | Long context, structured JSON output, nuanced reasoning  |
+| Roadmap generation              | gpt-5.4                | Complex mission structuring needs depth                  |
+| Interview conductor             | gpt-5.4                | Needs to maintain context across 10+ turns               |
+| Answer scoring (fast)           | gpt-5.4-mini           | High frequency, needs to be cheap and fast               |
 | Interview probing questions     | Gemini 2.0 Flash       | Ultra-fast follow-up generation, low latency feel        |
 | Resource research (per mission) | Gemini 2.0 Flash       | Grounding with Google Search built-in — finds real links |
-| CV + cover letter               | GPT-4o                 | High quality writing, JD mirroring                       |
-| Resume parsing                  | GPT-4o                 | Structured extraction from messy PDF text                |
+| CV + cover letter               | gpt-5.4                | High quality writing, JD mirroring                       |
+| Resume parsing                  | gpt-5.4                | Structured extraction from messy PDF text                |
 | Job research (company context)  | Gemini 2.0 Flash       | Real-time web grounding for recent company info          |
 | Embeddings                      | text-embedding-3-small | Cost-effective, good enough for job matching             |
 
@@ -1347,13 +1347,13 @@ Next.js route calls FastAPI POST /interview/message
 LangGraph interview agent:
   1. Appends message to transcript
   2. Evaluates current state (OPENING/TECHNICAL/PROBING/etc.)
-  3. Generates next AI message (GPT-4o or Gemini Flash)
-  4. Runs answer scoring in background (GPT-4o-mini)
+  3. Generates next AI message (gpt-5.4 or Gemini Flash)
+  4. Runs answer scoring in background (gpt-5.4-mini)
   5. Decides state transition
   6. Returns { message, state, done: false }
         ↓
 If done: POST /api/interviews/:id/end
-  → FastAPI generates debrief (GPT-4o)
+  → FastAPI generates debrief (gpt-5.4)
   → Writes to InterviewSession.debrief
   → Enqueues ANALYSIS:GAP_ANALYSIS (re-run with new interview data)
   → Enqueues NOTIFY: "Interview debrief ready"
@@ -1444,7 +1444,7 @@ async def call_gpt4o(prompt: str) -> str:
 
 - [ ] GitHub ingestion endpoint (PyGithub)
 - [ ] LeetCode ingestion (httpx + GraphQL)
-- [ ] Resume upload + parse (pdfplumber + GPT-4o)
+- [ ] Resume upload + parse (pdfplumber + gpt-5.4)
 - [ ] BullMQ workers: ingestion queue + job chaining
 - [ ] Onboarding wizard UI (5-step form + status polling)
 
@@ -1460,7 +1460,7 @@ async def call_gpt4o(prompt: str) -> str:
 
 - [ ] Interview state machine (LangGraph, 5 states)
 - [ ] Chat UI (real-time message exchange)
-- [ ] Answer scoring (background GPT-4o-mini)
+- [ ] Answer scoring (background gpt-5.4-mini)
 - [ ] Debrief generation + display page
 - [ ] Sentiment meter (optional: wire ai-video-sentiment-model)
 
@@ -1469,7 +1469,7 @@ async def call_gpt4o(prompt: str) -> str:
 - [ ] Job scraping: JSearch API integration
 - [ ] Embedding-based match scoring
 - [ ] Jobs listing page with match badges
-- [ ] CV + cover letter generation (GPT-4o)
+- [ ] CV + cover letter generation (gpt-5.4)
 - [ ] Apply modal (human-in-the-loop)
 
 ### Phase 5 — University Dashboard (Hours 23–26)

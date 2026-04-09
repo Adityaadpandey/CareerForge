@@ -1,4 +1,4 @@
-"""Resume ingestion: extract text with pdfplumber, structure with GPT-4o."""
+"""Resume ingestion: extract text with pdfplumber, structure with gpt-5.4."""
 import io
 import json
 import base64
@@ -49,7 +49,7 @@ async def ingest_resume(student_profile_id: str, pdf_bytes: bytes) -> dict:
         # Truncate to avoid token limits (keep most relevant content)
         text_for_llm = raw_text[:8000]
 
-        logger.info(f"[resume] Extracted {len(raw_text)} chars, sending to GPT-4o")
+        logger.info(f"[resume] Extracted {len(raw_text)} chars, sending to gpt-5.4")
 
         prompt = f"""You are a resume parser. Extract structured information from this resume text.
 
@@ -108,7 +108,7 @@ professional language, action verbs, and quantified achievements.
 """
 
         res = await _get_client().chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini-2026-03-17",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )

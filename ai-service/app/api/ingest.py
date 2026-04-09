@@ -138,7 +138,7 @@ async def ingest_leetcode_endpoint(req: IngestLeetcodeRequest, background_tasks:
 
 @router.post("/resume")
 async def ingest_resume_endpoint(req: IngestResumeRequest, background_tasks: BackgroundTasks):
-    """Accept base64-encoded PDF, parse with pdfplumber + GPT-4o."""
+    """Accept base64-encoded PDF, parse with pdfplumber + gpt-5.4."""
     pdf_bytes = base64.b64decode(req.pdf_b64)
     result = await ingest_resume(req.student_profile_id, pdf_bytes)
     background_tasks.add_task(_run_analysis_pipeline, req.student_profile_id)
