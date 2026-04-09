@@ -114,11 +114,11 @@ Rules:
 
 Return JSON:
 {{
-  "missions": [gpt-5.4-mini-2026-03-17
+  "missions": [
     {{
       "type": "BUILD|SOLVE|COMMUNICATE",
       "title": "...",
-      "description": "2-3 specific sentences about what to build/do and why",
+      "description": "Provide a highly detailed, professional Markdown formatted description.\\nMUST include headings like '### Context', '### Concepts to Understand', and concrete step-by-step '### Action Items'.\\nDo not use raw newlines inside the string, use explicit \\n escapes for formatted breaks.",
       "estimated_hours": 10,
       "success_criteria": "specific measurable outcome",
       "order_index": 1
@@ -159,7 +159,16 @@ async def set_deadlines(state: RoadmapState) -> RoadmapState:
     now = datetime.now(tz=timezone.utc)
 
     cumulative_hours = 0
+    previous_id = None
+
     for i, m in enumerate(missions):
+        # Pre-generate universally unique id here so we can chain dependencies
+        m["id"] = str(uuid.uuid4())
+        
+        # Link sequentially
+        m["prerequisiteIds"] = [previous_id] if previous_id else []
+        previous_id = m["id"]
+
         est = m.get("estimated_hours", 10)
         cumulative_hours += est
         deadline_weeks = max(1, round((cumulative_hours / total_hours) * weeks))
@@ -237,7 +246,7 @@ async def write_missions(state: RoadmapState) -> RoadmapState:
                resources, "estimatedHours", deadline, "orderIndex", "prerequisiteIds")
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             """,
-            str(uuid.uuid4()),
+            m["id"],
             spid,
             m["type"],
             m["title"],
@@ -247,7 +256,7 @@ async def write_missions(state: RoadmapState) -> RoadmapState:
             m.get("estimated_hours", 10),
             _parse_deadline_for_db(m.get("deadline")),
             m.get("order_index", 0),
-            [],
+            m.get("prerequisiteIds", []),
         )
 
     await pool.execute(

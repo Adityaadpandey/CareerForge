@@ -56,6 +56,32 @@ export async function PATCH(
         actionUrl: `/interview/${session_interview.id}`,
       },
     });
+
+    // Auto-unlock the next missions in the linear roadmap sequence
+    const nextMissions = await prisma.mission.findMany({
+      where: {
+        studentProfileId: profile.id,
+        prerequisiteIds: { has: id },
+        status: "LOCKED",
+      },
+    });
+
+    if (nextMissions.length > 0) {
+      await prisma.mission.updateMany({
+        where: { id: { in: nextMissions.map((m) => m.id) } },
+        data: { status: "AVAILABLE" },
+      });
+
+      // Optionally notify them that new missions are unlocked
+      await prisma.notification.create({
+        data: {
+          userId: session.user.id,
+          type: "MISSION_AVAILABLE",
+          title: "New Mission Unlocked!",
+          body: `You unlocked ${nextMissions.length} new mission(s). Keep up the momentum!`,
+        },
+      });
+    }
   }
 
   return NextResponse.json(mission);

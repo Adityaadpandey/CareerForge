@@ -17,6 +17,16 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Code2, Hammer, MessageSquare, CheckCircle2, Lock, Play, Clock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Mission = {
   id: string;
@@ -46,6 +56,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 function MissionNode({ data }: NodeProps) {
   const mission = data.mission as Mission;
+  const onSelect = data.onSelect as (m: Mission) => void;
   const TypeIcon = TYPE_ICON[mission.type] ?? Code2;
   const statusColor = STATUS_COLOR[mission.status] ?? STATUS_COLOR.LOCKED;
 
@@ -92,7 +103,12 @@ function MissionNode({ data }: NodeProps) {
         </div>
       </div>
 
-      <p className="text-xs text-zinc-500 leading-relaxed mb-3 line-clamp-2">{mission.description}</p>
+      <div className="flex-1 mb-3 cursor-pointer group" onClick={() => onSelect(mission)}>
+        <p className="text-xs text-zinc-500 leading-relaxed line-clamp-3 group-hover:text-zinc-300 transition-colors">
+          {mission.description.replace(/#/g, '')}
+        </p>
+        <p className="text-[10px] text-zinc-600 mt-1 uppercase tracking-wider font-semibold">Click to read details &rarr;</p>
+      </div>
 
       <div className="flex items-center gap-2 text-xs font-mono text-zinc-600 mb-3">
         <Clock className="w-3 h-3" />
@@ -162,13 +178,23 @@ function MissionNode({ data }: NodeProps) {
 const nodeTypes = { mission: MissionNode };
 
 export function RoadmapClient({ missions }: { missions: Mission[] }) {
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+
   const buildGraph = useCallback(() => {
-    const nodes: Node[] = missions.map((m, i) => ({
-      id: m.id,
-      type: "mission",
-      position: { x: (i % 3) * 300 + 50, y: Math.floor(i / 3) * 240 + 50 },
-      data: { mission: m },
-    }));
+    const nodes: Node[] = missions.map((m, i) => {
+      // Serpentine layout: zig-zag horizontally as y goes down
+      const row = Math.floor(i / 3);
+      const col = row % 2 === 0 ? (i % 3) : (2 - (i % 3));
+      const x = col * 320 + 50;
+      const y = row * 260 + 50;
+
+      return {
+        id: m.id,
+        type: "mission",
+        position: { x, y },
+        data: { mission: m, onSelect: setSelectedMission },
+      };
+    });
 
     const edges: Edge[] = [];
     missions.forEach((m) => {
@@ -237,6 +263,133 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
           }}
         />
       </ReactFlow>
+
+      <Sheet open={!!selectedMission} onOpenChange={(open) => !open && setSelectedMission(null)}>
+        {selectedMission && (
+          <SheetContent className="bg-zinc-950 border-l border-zinc-800 w-full sm:max-w-xl overflow-y-auto p-0">
+            <div className="sticky top-0 bg-zinc-950/80 backdrop-blur-md z-10 border-b border-zinc-800/50 p-6">
+              <SheetHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest uppercase bg-zinc-900 text-zinc-400 border border-zinc-800">
+                    {selectedMission.type}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono tracking-widest uppercase border ${STATUS_COLOR[selectedMission.status]?.split(' ')[0]} ${selectedMission.status === 'COMPLETED' ? 'text-green-500' : selectedMission.status === 'AVAILABLE' ? 'text-blue-500' : 'text-zinc-500'} bg-transparent`}>
+                    {selectedMission.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <SheetTitle className="text-xl text-white font-medium tracking-tight">
+                  {selectedMission.title}
+                </SheetTitle>
+              </SheetHeader>
+            </div>
+            
+            <div className="p-6 pb-24">
+              <div className="prose prose-invert prose-sm max-w-none space-y-4 text-sm text-zinc-400 leading-relaxed">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h3: ({node, ...props}) => <h3 className="text-base font-semibold text-zinc-100 mt-8 mb-3" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-1.5 my-3 text-zinc-300" {...props} />,
+                    li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                    code: ({node, className, children, ...props}) => {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const isInline = !match && !String(children).includes("\\n");
+                      return isInline ? (
+                        <code className="px-1.5 py-0.5 rounded-md bg-zinc-800/80 text-blue-300 font-mono text-[11px]" {...props}>
+                          {children}
+                        </code>
+                      ) : (
+                        <code className="block p-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-xs overflow-x-auto my-4" {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    strong: ({node, ...props}) => <strong className="font-semibold text-zinc-200" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-4" {...props} />
+                  }}
+                >
+                  {selectedMission.description}
+                </ReactMarkdown>
+              </div>
+
+              {selectedMission.resources.length > 0 && (
+                <div className="mt-10 pt-6 border-t border-zinc-900">
+                  <h4 className="text-sm font-medium text-white mb-4">Recommended Resources</h4>
+                  <div className="flex flex-col gap-2">
+                    {selectedMission.resources.map((r, i) => (
+                      <a
+                        key={i}
+                        href={r.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/80 border border-zinc-800/50 transition-colors group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-zinc-950 flex items-center justify-center shrink-0 border border-zinc-800">
+                          <ExternalLink className="w-3.5 h-3.5 text-zinc-500 group-hover:text-blue-400 transition-colors" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-300 group-hover:text-white truncate">{r.title}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-mono mt-0.5">{r.type}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="fixed bottom-0 w-full sm:max-w-xl bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pt-12 pb-6 px-6 pointer-events-none">
+              <div className="pointer-events-auto">
+                {selectedMission.status === "AVAILABLE" && (
+                  <button
+                    onClick={async () => {
+                      // Trigger start mission
+                      try {
+                        const res = await fetch(`/api/missions/${selectedMission.id}/status`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ status: "IN_PROGRESS" }),
+                          headers: { "Content-Type": "application/json" },
+                        });
+                        if (!res.ok) throw new Error();
+                        toast.success("Mission started!");
+                        setTimeout(() => window.location.reload(), 500);
+                      } catch {
+                         toast.error("Failed to start mission");
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all"
+                  >
+                    <Play className="w-4 h-4" />
+                    Accept Mission
+                  </button>
+                )}
+                {selectedMission.status === "IN_PROGRESS" && (
+                  <button
+                     onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/missions/${selectedMission.id}/status`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ status: "COMPLETED" }),
+                            headers: { "Content-Type": "application/json" },
+                          });
+                          if (!res.ok) throw new Error();
+                          toast.success("Mission completed! Interview queued.");
+                          setTimeout(() => window.location.reload(), 1000);
+                        } catch {
+                           toast.error("Failed to complete mission");
+                        }
+                     }}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-semibold shadow-lg shadow-green-500/20 transition-all"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Mark as Completed
+                  </button>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        )}
+      </Sheet>
     </div>
   );
 }
