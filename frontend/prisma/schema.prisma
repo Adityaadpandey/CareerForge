@@ -207,6 +207,14 @@ model InterviewSession {
   createdAt        DateTime        @default(now())
   completedAt      DateTime?
 
+  // Stream Video fields
+  streamCallId      String?
+  scheduledAt       DateTime?
+  recordingUrl      String?
+  transcriptUrl     String?
+  emotionData       Json?
+  communicationData Json?
+
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
   mission        Mission?       @relation(fields: [missionId], references: [id])
 }
@@ -215,11 +223,14 @@ enum InterviewType {
   TECHNICAL
   SYSTEM_DESIGN
   BEHAVIORAL
+  HR
   MIXED
 }
 
 enum InterviewStatus {
+  UPCOMING
   IN_PROGRESS
+  PROCESSING
   COMPLETED
   ABANDONED
 }
