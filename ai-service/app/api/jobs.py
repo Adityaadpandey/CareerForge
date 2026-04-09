@@ -3,12 +3,15 @@ import json
 import httpx
 from fastapi import APIRouter
 from openai import AsyncOpenAI
-from app.models.schemas import JobsFetchRequest, JobsApplyRequest
+from app.models.schemas import JobsFetchRequest, JobsApplyRequest, JobsMatchRequest
 from app.db.client import get_pool
 from app.config import settings
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+def get_client() -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY, timeout=60.0)
 
 
 @router.post("/fetch")
@@ -124,11 +127,11 @@ Keep it under 250 words. Professional but genuine tone.
 """
 
     cv_res, cl_res = await asyncio.gather(
-        client.chat.completions.create(
+        get_client().chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": cv_prompt}],
         ),
-        client.chat.completions.create(
+        get_client().chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": cl_prompt}],
         ),
@@ -141,3 +144,50 @@ Keep it under 250 words. Professional but genuine tone.
     }
 
 
+@router.post("/match")
+async def match_jobs(req: JobsMatchRequest):
+    """Compute match scores for a list of job IDs against a student profile."""
+    pool = await get_pool()
+
+    profile = await pool.fetchrow(
+        """
+        SELECT sp."targetRole",
+               pc."parsedData" as github_data,
+               rs."weakTopics"
+        FROM "StudentProfile" sp
+        LEFT JOIN "PlatformConnection" pc ON pc."studentProfileId" = sp.id AND pc.platform = 'GITHUB'
+        LEFT JOIN "ReadinessScore" rs ON rs."studentProfileId" = sp.id
+        WHERE sp.id = $1
+        ORDER BY rs."createdAt" DESC
+        LIMIT 1
+        """,
+        req.student_profile_id,
+    )
+
+    if not profile:
+        return {"status": "error", "message": "Profile not found"}
+
+    target_role = profile["targetRole"] or "Software Engineer"
+    gh = json.loads(profile["github_data"] or "{}")
+    skills = list(gh.get("primary_languages", {}).keys())[:10]
+
+    for job_id in req.job_ids:
+        job = await pool.fetchrow(
+            'SELECT title, "requirementsTags" FROM "Job" WHERE id = $1',
+            job_id,
+        )
+        if not job:
+            continue
+
+        req_tags = job["requirementsTags"] or []
+        matched = [s for s in skills if any(s.lower() in t.lower() for t in req_tags)]
+        score = min(100, int((len(matched) / max(len(req_tags), 1)) * 100) + 20)
+
+        await pool.execute(
+            'UPDATE "JobApplication" SET "matchScore" = $1 WHERE "jobId" = $2 AND "studentProfileId" = $3',
+            float(score),
+            job_id,
+            req.student_profile_id,
+        )
+
+    return {"status": "done", "matched": len(req.job_ids)}

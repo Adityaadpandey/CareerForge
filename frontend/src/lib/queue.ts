@@ -27,7 +27,8 @@ export function getQueue(name: QueueName): Queue {
 export type IngestionJob =
   | { type: "GITHUB"; studentProfileId: string; username: string }
   | { type: "LEETCODE"; studentProfileId: string; handle: string }
-  | { type: "RESUME"; studentProfileId: string; fileKey: string };
+  | { type: "RESUME"; studentProfileId: string; fileKey: string }
+  | { type: "LINKEDIN"; studentProfileId: string; linkedinUrl: string };
 
 export type AnalysisJob =
   | { type: "GAP_ANALYSIS"; studentProfileId: string }

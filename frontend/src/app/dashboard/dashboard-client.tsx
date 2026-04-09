@@ -1,12 +1,14 @@
 "use client";
 
-import { RadialBarChart, RadialBar, ResponsiveContainer, Tooltip } from "recharts";
+import { useState } from "react";
+import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 import {
   Flame, Trophy, AlertTriangle, TrendingUp, TrendingDown,
   Clock, CheckCircle2, Lock, Play, Code2, Hammer, MessageSquare,
-  ChevronRight, RefreshCw,
+  ChevronRight, RefreshCw, Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 type Mission = {
   id: string;
@@ -62,8 +64,29 @@ const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string }
 export function DashboardClient({ user, profile, readiness, missions, connections }: Props) {
   const seg = SEGMENT_CONFIG[profile.segment] ?? SEGMENT_CONFIG.UNASSESSED;
   const SegIcon = seg.icon;
+  const [triggering, setTriggering] = useState(false);
 
   const syncingCount = connections.filter((c) => c.syncStatus === "SYNCING" || c.syncStatus === "PENDING").length;
+  const allSynced = connections.length > 0 && syncingCount === 0;
+  const needsAnalysis = allSynced && !readiness;
+
+  const triggerAnalysis = async () => {
+    setTriggering(true);
+    try {
+      const res = await fetch("/api/analyze/trigger", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json();
+        toast.error(body.error ?? "Failed to trigger analysis");
+      } else {
+        toast.success("Analysis running — refresh in ~60 seconds");
+        setTimeout(() => window.location.reload(), 60_000);
+      }
+    } catch {
+      toast.error("Could not reach AI service");
+    } finally {
+      setTriggering(false);
+    }
+  };
 
   const pillars = readiness
     ? [
@@ -99,6 +122,26 @@ export function DashboardClient({ user, profile, readiness, missions, connection
           <p className="text-sm text-amber-300">
             Syncing your profiles… this takes ~60 seconds. Your roadmap will appear shortly.
           </p>
+        </div>
+      )}
+
+      {/* Analysis not yet run banner */}
+      {needsAnalysis && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-zinc-700/60 bg-zinc-900/60">
+          <div className="flex items-center gap-3">
+            <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <p className="text-sm text-zinc-300">
+              Profiles synced — run gap analysis to see your readiness score and roadmap.
+            </p>
+          </div>
+          <button
+            onClick={triggerAnalysis}
+            disabled={triggering}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {triggering ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+            {triggering ? "Running…" : "Run Analysis"}
+          </button>
         </div>
       )}
 

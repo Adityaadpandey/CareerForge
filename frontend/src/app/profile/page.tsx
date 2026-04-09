@@ -3,15 +3,25 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import axios from "axios";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/shared/sidebar";
 import {
-  User, Link2, Target, Building2, GraduationCap,
-  Clock, RefreshCw, CheckCircle2, XCircle, Loader2,
+  User,
+  Link2,
+  Target,
+  Building2,
+  GraduationCap,
+  Clock,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Upload,
+  FileSymlink,
 } from "lucide-react";
 
 const profileSchema = z.object({
@@ -76,26 +86,39 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [linkedinInput, setLinkedinInput] = useState("");
+  const [showLinkedinInput, setShowLinkedinInput] = useState(false);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const { data: profile, isLoading } = useQuery<Profile>({
     queryKey: ["profile"],
     queryFn: () => axios.get<Profile>("/api/profile").then((r) => r.data),
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<ProfileForm>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProfileForm>({
     resolver: standardSchemaResolver(profileSchema),
     values: profile
       ? {
           department: profile.department ?? "",
-          graduationYear: String(profile.graduationYear ?? new Date().getFullYear() + 2),
+          graduationYear: String(
+            profile.graduationYear ?? new Date().getFullYear() + 2,
+          ),
           githubUsername: profile.githubUsername ?? "",
           leetcodeHandle: profile.leetcodeHandle ?? "",
           codeforcesHandle: profile.codeforcesHandle ?? "",
           linkedinUrl: profile.linkedinUrl ?? "",
           targetRole: profile.targetRole ?? "",
           dreamCompanies: profile.dreamCompanies.join(", "),
-          timelineWeeks: profile.timelineWeeks ? String(profile.timelineWeeks) : "",
-          hoursPerWeek: profile.hoursPerWeek ? String(profile.hoursPerWeek) : "",
+          timelineWeeks: profile.timelineWeeks
+            ? String(profile.timelineWeeks)
+            : "",
+          hoursPerWeek: profile.hoursPerWeek
+            ? String(profile.hoursPerWeek)
+            : "",
         }
       : undefined,
   });
@@ -104,11 +127,20 @@ export default function ProfilePage() {
     mutationFn: (data: ProfileForm) =>
       axios.patch("/api/profile", {
         ...data,
-        graduationYear: data.graduationYear ? parseInt(data.graduationYear, 10) : undefined,
-        timelineWeeks: data.timelineWeeks ? parseInt(data.timelineWeeks, 10) : undefined,
-        hoursPerWeek: data.hoursPerWeek ? parseInt(data.hoursPerWeek, 10) : undefined,
+        graduationYear: data.graduationYear
+          ? parseInt(data.graduationYear, 10)
+          : undefined,
+        timelineWeeks: data.timelineWeeks
+          ? parseInt(data.timelineWeeks, 10)
+          : undefined,
+        hoursPerWeek: data.hoursPerWeek
+          ? parseInt(data.hoursPerWeek, 10)
+          : undefined,
         dreamCompanies: data.dreamCompanies
-          ? data.dreamCompanies.split(",").map((s) => s.trim()).filter(Boolean)
+          ? data.dreamCompanies
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
           : [],
       }),
     onSuccess: () => {
@@ -129,6 +161,47 @@ export default function ProfilePage() {
     onError: () => toast.error("Failed to queue sync"),
   });
 
+  const linkedinMutation = useMutation({
+    mutationFn: (url: string) =>
+      axios.post("/api/profile/linkedin", { linkedinUrl: url }),
+    onSuccess: () => {
+      toast.success("LinkedIn sync queued — takes ~60 seconds");
+      setShowLinkedinInput(false);
+      setLinkedinInput("");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error ?? "Failed to connect LinkedIn"),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("resume", file);
+      return axios.post("/api/profile/resume", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Resume upload queued — parsing with AI takes ~60 seconds");
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error ?? "Resume upload failed"),
+  });
+
+  const handleResumeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast.error("Only PDF files are accepted");
+      return;
+    }
+    resumeMutation.mutate(file);
+    // Reset input so same file can be re-uploaded
+    e.target.value = "";
+  };
+
   return (
     <div className="flex min-h-screen bg-[#0a0a0a]">
       <Sidebar />
@@ -136,7 +209,9 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-xs font-mono tracking-widest text-zinc-500 uppercase mb-1">Account</p>
+            <p className="text-xs font-mono tracking-widest text-zinc-500 uppercase mb-1">
+              Account
+            </p>
             <h1 className="text-2xl text-white font-light">Profile</h1>
           </div>
           <button
@@ -163,8 +238,12 @@ export default function ProfilePage() {
               </div>
             )}
             <div>
-              <p className="text-white font-medium">{session?.user?.name ?? "—"}</p>
-              <p className="text-zinc-500 text-sm">{session?.user?.email ?? "—"}</p>
+              <p className="text-white font-medium">
+                {session?.user?.name ?? "—"}
+              </p>
+              <p className="text-zinc-500 text-sm">
+                {session?.user?.email ?? "—"}
+              </p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs font-mono text-amber-400">
                   {profile?.segment?.replace("_", " ") ?? "UNASSESSED"}
@@ -181,11 +260,17 @@ export default function ProfilePage() {
           {isLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-8 bg-zinc-800/60 rounded animate-pulse" />
+                <div
+                  key={i}
+                  className="h-8 bg-zinc-800/60 rounded animate-pulse"
+                />
               ))}
             </div>
           ) : editing ? (
-            <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
+            <form
+              onSubmit={handleSubmit((d) => saveMutation.mutate(d))}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">
@@ -196,7 +281,11 @@ export default function ProfilePage() {
                     className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
                     placeholder="e.g. Computer Science"
                   />
-                  {errors.department && <p className="text-red-400 text-xs mt-1">{errors.department.message}</p>}
+                  {errors.department && (
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.department.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">
@@ -252,7 +341,11 @@ export default function ProfilePage() {
                     className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
                     placeholder="https://linkedin.com/in/..."
                   />
-                  {errors.linkedinUrl && <p className="text-red-400 text-xs mt-1">{errors.linkedinUrl.message}</p>}
+                  {errors.linkedinUrl && (
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.linkedinUrl.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -312,16 +405,45 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-3">
               {[
-                { icon: <GraduationCap className="w-4 h-4" />, label: "Department", value: profile?.department },
-                { icon: <GraduationCap className="w-4 h-4" />, label: "Graduation", value: profile?.graduationYear?.toString() },
-                { icon: <Target className="w-4 h-4" />, label: "Target Role", value: profile?.targetRole },
-                { icon: <Building2 className="w-4 h-4" />, label: "Dream Companies", value: profile?.dreamCompanies?.join(", ") || null },
-                { icon: <Clock className="w-4 h-4" />, label: "Timeline", value: profile?.timelineWeeks ? `${profile.timelineWeeks} weeks · ${profile.hoursPerWeek ?? "?"} hrs/wk` : null },
+                {
+                  icon: <GraduationCap className="w-4 h-4" />,
+                  label: "Department",
+                  value: profile?.department,
+                },
+                {
+                  icon: <GraduationCap className="w-4 h-4" />,
+                  label: "Graduation",
+                  value: profile?.graduationYear?.toString(),
+                },
+                {
+                  icon: <Target className="w-4 h-4" />,
+                  label: "Target Role",
+                  value: profile?.targetRole,
+                },
+                {
+                  icon: <Building2 className="w-4 h-4" />,
+                  label: "Dream Companies",
+                  value: profile?.dreamCompanies?.join(", ") || null,
+                },
+                {
+                  icon: <Clock className="w-4 h-4" />,
+                  label: "Timeline",
+                  value: profile?.timelineWeeks
+                    ? `${profile.timelineWeeks} weeks · ${profile.hoursPerWeek ?? "?"} hrs/wk`
+                    : null,
+                },
+                {
+                  icon: <Link2 className="w-4 h-4" />,
+                  label: "LinkedIn",
+                  value: profile?.linkedinUrl || null,
+                },
               ].map(({ icon, label, value }) => (
                 <div key={label} className="flex items-center gap-3 text-sm">
                   <span className="text-zinc-600 shrink-0">{icon}</span>
                   <span className="text-zinc-500 w-32 shrink-0">{label}</span>
-                  <span className="text-white">{value || <span className="text-zinc-600">—</span>}</span>
+                  <span className="text-white truncate">
+                    {value || <span className="text-zinc-600">—</span>}
+                  </span>
                 </div>
               ))}
             </div>
@@ -330,36 +452,117 @@ export default function ProfilePage() {
 
         {/* Platform connections */}
         <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6">
-          <h2 className="text-sm font-medium text-white mb-4">Platform Connections</h2>
-          {(["GITHUB", "LEETCODE", "CODEFORCES", "LINKEDIN", "RESUME"] as const).map((platform) => {
-            const conn = profile?.platformConnections?.find((c) => c.platform === platform);
+          <h2 className="text-sm font-medium text-white mb-4">
+            Platform Connections
+          </h2>
+
+          {/* Hidden file input for resume */}
+          <input
+            ref={resumeInputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={handleResumeFile}
+          />
+
+          {(
+            ["GITHUB", "LEETCODE", "CODEFORCES", "LINKEDIN", "RESUME"] as const
+          ).map((platform) => {
+            const conn = profile?.platformConnections?.find(
+              (c) => c.platform === platform,
+            );
             const status = conn?.syncStatus ?? "PENDING";
+
             return (
               <div
                 key={platform}
-                className="flex items-center justify-between py-3 border-b border-zinc-800/40 last:border-0"
+                className="border-b border-zinc-800/40 last:border-0"
               >
-                <div className="flex items-center gap-3">
-                  {STATUS_ICON[status]}
-                  <div>
-                    <p className="text-sm text-white">{PLATFORM_LABELS[platform]}</p>
-                    {conn?.lastSyncedAt && (
-                      <p className="text-xs text-zinc-600">
-                        Last synced {new Date(conn.lastSyncedAt).toLocaleDateString()}
+                <div className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3">
+                    {STATUS_ICON[status]}
+                    <div>
+                      <p className="text-sm text-white">
+                        {PLATFORM_LABELS[platform]}
                       </p>
+                      {conn?.lastSyncedAt && (
+                        <p className="text-xs text-zinc-600">
+                          Last synced{" "}
+                          {new Date(conn.lastSyncedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-mono ${STATUS_COLOR[status]}`}
+                    >
+                      {status}
+                    </span>
+
+                    {/* Platform-specific action buttons */}
+                    {platform === "LINKEDIN" ? (
+                      <button
+                        onClick={() => setShowLinkedinInput((v) => !v)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-500 hover:text-blue-400 hover:border-blue-500/30 text-xs transition-colors"
+                      >
+                        <FileSymlink className="w-3.5 h-3.5" />
+                        Connect
+                      </button>
+                    ) : platform === "RESUME" ? (
+                      <button
+                        onClick={() => resumeInputRef.current?.click()}
+                        disabled={resumeMutation.isPending}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 text-xs transition-colors disabled:opacity-40"
+                      >
+                        {resumeMutation.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5" />
+                        )}
+                        {resumeMutation.isPending ? "Uploading…" : "Upload PDF"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => syncMutation.mutate(platform)}
+                        disabled={syncMutation.isPending}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-colors disabled:opacity-40"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs font-mono ${STATUS_COLOR[status]}`}>{status}</span>
-                  <button
-                    onClick={() => syncMutation.mutate(platform)}
-                    disabled={syncMutation.isPending}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-colors disabled:opacity-40"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+
+                {/* LinkedIn inline URL input */}
+                {platform === "LINKEDIN" && showLinkedinInput && (
+                  <div className="pb-3 flex gap-2">
+                    <input
+                      type="url"
+                      value={linkedinInput}
+                      onChange={(e) => setLinkedinInput(e.target.value)}
+                      placeholder="https://linkedin.com/in/yourname"
+                      className="flex-1 bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:border-blue-500/50 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        if (linkedinInput.trim())
+                          linkedinMutation.mutate(linkedinInput.trim());
+                      }}
+                      disabled={
+                        linkedinMutation.isPending || !linkedinInput.trim()
+                      }
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {linkedinMutation.isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        "Sync"
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

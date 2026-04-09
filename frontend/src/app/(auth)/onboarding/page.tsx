@@ -99,19 +99,24 @@ export default function OnboardingPage() {
     }
     setSubmitting(true);
     try {
-      const formData = new FormData();
-      Object.entries(data).forEach(([k, v]) => {
-        formData.append(k, Array.isArray(v) ? JSON.stringify(v) : String(v));
-      });
-      if (resumeFile) formData.append("resume", resumeFile);
-
       const res = await fetch("/api/onboarding/connect", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leetcodeHandle: data.leetcodeHandle || null,
+          codeforcesHandle: data.codeforcesHandle || null,
+          targetRole: data.targetRole,
+          dreamCompanies: data.dreamCompanies,
+          timelineWeeks: data.timelineWeeks,
+          hoursPerWeek: data.hoursPerWeek,
+        }),
       });
 
-      if (!res.ok) throw new Error("Failed to submit");
-      router.push("/dashboard?onboarding=true");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any).error ?? "Failed to submit");
+      }
+      router.push("/onboarding/status");
     } catch {
       toast.error("Something went wrong. Please try again.");
       setSubmitting(false);

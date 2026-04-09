@@ -44,3 +44,18 @@ class JobsFetchRequest(BaseModel):
 class JobsApplyRequest(BaseModel):
     student_profile_id: str
     job_id: str
+
+
+class JobsMatchRequest(BaseModel):
+    student_profile_id: str
+    job_ids: list[str]
+
+
+class IngestResumeRequest(BaseModel):
+    student_profile_id: str
+    pdf_b64: str  # base64-encoded PDF bytes
+
+
+class IngestLinkedInRequest(BaseModel):
+    student_profile_id: str
+    linkedin_url: str

@@ -1,12 +1,14 @@
 import json
-from datetime import datetime, timedelta, timezone
-from github import Github
-from app.config import settings
+import logging
+from app.agents.github_agent import github_agent_graph
+from app.agents.base import init_state
 from app.db.client import get_pool
+
+logger = logging.getLogger(__name__)
 
 
 async def ingest_github(student_profile_id: str, username: str) -> dict:
-    """Fetch GitHub data and store in platform_connections."""
+    """Run the deep GitHub analysis agent and return parsed data."""
     pool = await get_pool()
 
     # Mark as syncing
@@ -20,64 +22,40 @@ async def ingest_github(student_profile_id: str, username: str) -> dict:
     )
 
     try:
-        g = Github(settings.GITHUB_TOKEN or None)
-        user = g.get_user(username)
+        logger.info(f"Starting deep GitHub analysis for {username}")
 
-        repos = list(user.get_repos(type="owner"))[:50]
-
-        # Language stats
-        lang_counts: dict[str, int] = {}
-        for repo in repos:
-            if not repo.fork:
-                for lang, count in (repo.get_languages() or {}).items():
-                    lang_counts[lang] = lang_counts.get(lang, 0) + count
-
-        # Contribution graph (last 90 days)
-        since = datetime.now(tz=timezone.utc) - timedelta(days=90)
-        commits_90d = 0
-        try:
-            for repo in repos[:20]:
-                commits = repo.get_commits(author=username, since=since)
-                commits_90d += commits.totalCount
-        except Exception:
-            pass
-
-        # Top projects
-        top_projects = sorted(repos, key=lambda r: r.stargazers_count, reverse=True)[:5]
-
-        parsed_data = {
-            "total_repos": user.public_repos,
-            "primary_languages": dict(sorted(lang_counts.items(), key=lambda x: -x[1])[:8]),
-            "commit_count_90d": commits_90d,
-            "avg_repo_stars": sum(r.stargazers_count for r in repos) / max(len(repos), 1),
-            "has_readme_ratio": sum(1 for r in repos if r.has_wiki) / max(len(repos), 1),
-            "top_projects": [
-                {
-                    "name": r.name,
-                    "description": r.description or "",
-                    "stars": r.stargazers_count,
-                    "languages": list((r.get_languages() or {}).keys())[:5],
-                }
-                for r in top_projects
-            ],
-            "followers": user.followers,
-            "bio": user.bio or "",
-        }
-
-        await pool.execute(
-            """
-            UPDATE "PlatformConnection"
-            SET "syncStatus" = 'DONE', "parsedData" = $2, "rawData" = $3, "lastSyncedAt" = NOW()
-            WHERE "studentProfileId" = $1 AND platform = 'GITHUB'
-            """,
-            student_profile_id,
-            json.dumps(parsed_data),
-            json.dumps({"username": username}),
+        result = await github_agent_graph.ainvoke(
+            init_state(
+                "github-agent",
+                student_profile_id=student_profile_id,
+                username=username,
+                profile={},
+                repos_deep=[],
+                lang_totals={},
+                code_samples=[],
+                contributions=[],
+                commit_patterns={},
+                code_quality={},
+                synthesis={},
+                final_parsed={},
+                _github=None,
+            )
         )
 
-        return parsed_data
+        # Log execution summary
+        trace = result.get("_trace", [])
+        total_time = sum(t.get("elapsed_s", 0) for t in trace)
+        failed = [t["node"] for t in trace if t.get("status") == "error"]
+        logger.info(
+            f"GitHub analysis complete for {username} — "
+            f"{len(trace)} nodes in {total_time:.1f}s"
+            f"{f', failed: {failed}' if failed else ''}"
+        )
+
+        return result.get("final_parsed", {})
 
     except Exception as e:
+        logger.error(f"GitHub analysis failed for {username}: {e}", exc_info=True)
         await pool.execute(
             """
             UPDATE "PlatformConnection"
@@ -85,6 +63,6 @@ async def ingest_github(student_profile_id: str, username: str) -> dict:
             WHERE "studentProfileId" = $1 AND platform = 'GITHUB'
             """,
             student_profile_id,
-            str(e),
+            str(e)[:500],
         )
         raise

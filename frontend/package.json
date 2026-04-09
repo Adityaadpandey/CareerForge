@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "worker": "tsx --env-file=.env src/lib/worker.ts"
+    "worker": "tsx src/lib/worker.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

@@ -54,7 +54,8 @@ async def validate_internal_secret(request: Request, call_next):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "Internal error"})
+    detail = str(exc) if settings.ENVIRONMENT == "development" else "Internal error"
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 
 # Register routers

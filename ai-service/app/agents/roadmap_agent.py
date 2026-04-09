@@ -1,27 +1,50 @@
-"""Roadmap generator LangGraph agent.
+"""Roadmap Generator Agent — produces personalized learning missions.
 
-Graph: load_gaps → prioritize → generate_missions → set_deadlines → write_missions
+Architecture:
+  load_gaps ──→ generate_missions ──→ set_deadlines ──→ attach_resources ──→ write_missions
+                                                            │
+                                                            ▼
+                                                           END
+
+Design:
+- load_gaps, write_missions are CRITICAL
+- generate_missions is CRITICAL (no missions = no roadmap)
+- set_deadlines is CRITICAL (deadlines are essential for scheduling)
+- attach_resources is NON-CRITICAL (missions work without curated links)
+- Resources fetched in parallel via Gemini (with per-mission error isolation)
 """
 import json
 import uuid
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import TypedDict
+
 from langgraph.graph import StateGraph, END
-from openai import AsyncOpenAI
+
 from app.db.client import get_pool
-from app.config import settings
+from app.agents.base import agent_node, llm_json, gemini_json, init_state
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
 
+
+# ─── STATE ──────────────────────────────────────────────────────
 
 class RoadmapState(TypedDict):
     student_profile_id: str
+    _agent_name: str
+    _trace: list[dict]
+    _started_at: float
     gaps: list[dict]
     profile_meta: dict
     missions: list[dict]
 
 
+# ─── NODE 1: LOAD GAPS (critical) ──────────────────────────────
+
+@agent_node("load_gaps", critical=True)
 async def load_gaps(state: RoadmapState) -> RoadmapState:
+    """Load gap analysis and student preferences from DB."""
     pool = await get_pool()
 
     score_row = await pool.fetchrow(
@@ -29,8 +52,7 @@ async def load_gaps(state: RoadmapState) -> RoadmapState:
         SELECT "gapAnalysis", "weakTopics"
         FROM "ReadinessScore"
         WHERE "studentProfileId" = $1
-        ORDER BY "createdAt" DESC
-        LIMIT 1
+        ORDER BY "createdAt" DESC LIMIT 1
         """,
         state["student_profile_id"],
     )
@@ -52,7 +74,11 @@ async def load_gaps(state: RoadmapState) -> RoadmapState:
     }
 
 
+# ─── NODE 2: GENERATE MISSIONS (critical) ──────────────────────
+
+@agent_node("generate_missions", critical=True)
 async def generate_missions(state: RoadmapState) -> RoadmapState:
+    """LLM generates concrete, deliverable-oriented missions from gaps."""
     meta = state["profile_meta"]
     gaps = state["gaps"]
     target_role = meta.get("targetRole", "SDE")
@@ -62,19 +88,19 @@ async def generate_missions(state: RoadmapState) -> RoadmapState:
     top_gaps = sorted(gaps, key=lambda g: g.get("importance", 0), reverse=True)[:6]
     n_missions = min(len(top_gaps) + 2, 8)
 
-    prompt = f"""
-You are a senior career coach. Generate {n_missions} concrete missions for a student targeting {target_role}.
+    result = await llm_json(
+        prompt=f"""You are a senior career coach. Generate {n_missions} concrete missions for a student targeting {target_role}.
 
 Skill gaps to address: {json.dumps(top_gaps)}
 Timeline: {weeks} weeks, {hours} hrs/week available
 
 Rules:
-- Each mission must be a DELIVERABLE (something to build or produce), not just "study X"
+- Each mission must be a DELIVERABLE (build/produce something), not "study X"
 - Mix of BUILD (project), SOLVE (DSA practice), COMMUNICATE (blog/writeup) types
 - Order from foundational to advanced
 - Must be completable in 5-25 hours each
 
-Return ONLY valid JSON:
+Return JSON:
 {{
   "missions": [
     {{
@@ -86,31 +112,38 @@ Return ONLY valid JSON:
       "order_index": 1
     }}
   ]
-}}
-"""
-
-    res = await client.chat.completions.create(
+}}""",
         model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
+        temperature=0.5,
+        fallback={"missions": []},
+        label="roadmap/missions",
     )
 
-    try:
-        result = json.loads(res.choices[0].message.content or "{}")
-        missions = result.get("missions", [])
-    except Exception:
-        missions = []
+    missions = result.get("missions", [])
+    if not missions:
+        logger.warning("[roadmap] LLM returned no missions — generating defaults")
+        missions = [
+            {"type": "SOLVE", "title": f"DSA Practice: {target_role} Essentials",
+             "description": "Solve 30 medium-level problems on arrays, strings, and graphs.",
+             "estimated_hours": 15, "success_criteria": "30 problems solved", "order_index": 1},
+            {"type": "BUILD", "title": f"Portfolio Project for {target_role}",
+             "description": "Build a production-quality project demonstrating core skills for the target role.",
+             "estimated_hours": 20, "success_criteria": "Deployed project with README", "order_index": 2},
+        ]
 
     return {**state, "missions": missions}
 
 
+# ─── NODE 3: SET DEADLINES (critical) ──────────────────────────
+
+@agent_node("set_deadlines", critical=True)
 async def set_deadlines(state: RoadmapState) -> RoadmapState:
+    """Compute progressive deadlines based on timeline and hours budget."""
     missions = state["missions"]
     weeks = state["profile_meta"].get("timelineWeeks", 12)
     hours_per_week = state["profile_meta"].get("hoursPerWeek", 10)
 
-    total_hours = weeks * hours_per_week
-    n = len(missions)
+    total_hours = max(weeks * hours_per_week, 1)
     now = datetime.now(tz=timezone.utc)
 
     cumulative_hours = 0
@@ -124,16 +157,55 @@ async def set_deadlines(state: RoadmapState) -> RoadmapState:
     return {**state, "missions": missions}
 
 
+# ─── NODE 4: ATTACH RESOURCES (non-critical) ───────────────────
+
+@agent_node("attach_resources", critical=False)
+async def attach_resources(state: RoadmapState) -> RoadmapState:
+    """Fetch learning resources for each mission via Gemini (parallel, per-mission error isolation)."""
+    missions = state["missions"]
+
+    async def get_resources_for(mission: dict) -> list[dict]:
+        result = await gemini_json(
+            prompt=f"""Find 3 specific, real learning resources for this mission:
+Title: {mission['title']}
+Description: {mission['description']}
+
+Return exactly 3 resources as JSON array:
+[{{"title": "...", "url": "https://...", "type": "article|video|course|docs"}}]
+
+Only return real, existing URLs. Prefer free resources.""",
+            fallback=[],
+            label=f"roadmap/resources/{mission.get('title', 'unknown')[:30]}",
+        )
+        return result if isinstance(result, list) else []
+
+    # Parallel fetch with per-mission isolation
+    resource_lists = await asyncio.gather(
+        *[get_resources_for(m) for m in missions],
+        return_exceptions=True,
+    )
+
+    for m, resources in zip(missions, resource_lists):
+        if isinstance(resources, Exception):
+            logger.warning(f"[roadmap] Resource fetch failed for {m.get('title', '?')}: {resources}")
+            m["resources"] = []
+        else:
+            m["resources"] = resources
+
+    return {**state, "missions": missions}
+
+
+# ─── NODE 5: WRITE MISSIONS (critical) ─────────────────────────
+
+@agent_node("write_missions", critical=True)
 async def write_missions(state: RoadmapState) -> RoadmapState:
+    """Persist missions to DB and mark onboarding complete."""
     pool = await get_pool()
     spid = state["student_profile_id"]
 
     # Keep completed missions, replace the rest
     await pool.execute(
-        """
-        DELETE FROM "Mission"
-        WHERE "studentProfileId" = $1 AND status != 'COMPLETED'
-        """,
+        'DELETE FROM "Mission" WHERE "studentProfileId" = $1 AND status != \'COMPLETED\'',
         spid,
     )
 
@@ -151,33 +223,38 @@ async def write_missions(state: RoadmapState) -> RoadmapState:
             m["title"],
             m["description"],
             m.get("status", "LOCKED"),
-            json.dumps([]),  # resources attached separately
+            json.dumps(m.get("resources", [])),
             m.get("estimated_hours", 10),
             datetime.fromisoformat(m["deadline"]) if m.get("deadline") else None,
             m.get("order_index", 0),
             [],
         )
 
-    # Mark onboarding done
     await pool.execute(
         'UPDATE "StudentProfile" SET "onboardingDone" = TRUE WHERE id = $1',
         spid,
     )
 
+    logger.info(f"[roadmap] Wrote {len(state['missions'])} missions, onboarding marked done")
     return state
 
 
+# ─── GRAPH ──────────────────────────────────────────────────────
+
 def build_roadmap_agent():
     g = StateGraph(RoadmapState)
+
     g.add_node("load_gaps", load_gaps)
     g.add_node("generate_missions", generate_missions)
     g.add_node("set_deadlines", set_deadlines)
+    g.add_node("attach_resources", attach_resources)
     g.add_node("write_missions", write_missions)
 
     g.set_entry_point("load_gaps")
     g.add_edge("load_gaps", "generate_missions")
     g.add_edge("generate_missions", "set_deadlines")
-    g.add_edge("set_deadlines", "write_missions")
+    g.add_edge("set_deadlines", "attach_resources")
+    g.add_edge("attach_resources", "write_missions")
     g.add_edge("write_missions", END)
 
     return g.compile()
