@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "seed:dashboard": "tsx --env-file=.env prisma/seed-dashboard.ts",
     "worker": "tsx src/lib/worker.ts",
     "worker:ingestion": "WORKER_TYPE=ingestion tsx src/lib/worker.ts",
     "worker:analysis": "WORKER_TYPE=analysis tsx src/lib/worker.ts",
