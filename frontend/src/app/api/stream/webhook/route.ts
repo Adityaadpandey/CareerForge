@@ -79,17 +79,20 @@ export async function POST(req: NextRequest) {
   }
 
   const eventType = payload?.type as string;
+  console.log(`[stream-webhook] Received event: ${eventType}`);
 
   if (eventType === "call.session_started") {
     const event = payload as unknown as CallSessionStartedEvent;
     const interviewId = event.call.custom?.interviewId as string;
     const interviewType = (event.call.custom?.interviewType as string) ?? "TECHNICAL";
 
+    console.log(`[stream-webhook] session_started — interviewId=${interviewId} type=${interviewType}`);
+
     if (!interviewId) {
+      console.error("[stream-webhook] Missing interviewId in call.custom");
       return NextResponse.json({ error: "Missing interviewId" }, { status: 400 });
     }
 
-    // Mark as IN_PROGRESS
     await prisma.interviewSession.updateMany({
       where: { id: interviewId, status: { in: ["UPCOMING", "IN_PROGRESS"] } },
       data: { status: "IN_PROGRESS" },
@@ -98,17 +101,24 @@ export async function POST(req: NextRequest) {
     const call = streamVideo.video.call("default", interviewId);
     const instructions = INTERVIEW_INSTRUCTIONS[interviewType] ?? INTERVIEW_INSTRUCTIONS.TECHNICAL;
 
-    const realtimeClient = await streamVideo.video.connectOpenAi({
-      call,
-      openAiApiKey: process.env.OPENAI_API_KEY!,
-      agentUserId: "ai-interviewer",
-    });
+    try {
+      console.log(`[stream-webhook] Connecting OpenAI Realtime to call ${interviewId}…`);
+      const realtimeClient = await streamVideo.video.connectOpenAi({
+        call,
+        openAiApiKey: process.env.OPENAI_API_KEY!,
+        agentUserId: "ai-interviewer",
+      });
 
-    realtimeClient.updateSession({
-      instructions,
-      voice: "alloy",
-      turn_detection: { type: "server_vad" },
-    });
+      realtimeClient.updateSession({
+        instructions,
+        voice: "alloy",
+        turn_detection: { type: "server_vad" },
+      });
+      console.log(`[stream-webhook] AI agent connected successfully for interview ${interviewId}`);
+    } catch (err) {
+      console.error(`[stream-webhook] connectOpenAi FAILED for interview ${interviewId}:`, err);
+      // Return 200 so Stream doesn't retry — log the error for debugging
+    }
 
   } else if (eventType === "call.session_participant_left") {
     const event = payload as unknown as CallSessionParticipantLeftEvent;

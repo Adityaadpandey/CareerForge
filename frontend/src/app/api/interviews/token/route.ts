@@ -17,13 +17,13 @@ export async function GET() {
     },
   ]);
 
-  const expirationTime = Math.floor(Date.now() / 1000) + 3600;
-  const issuedAt = Math.floor(Date.now() / 1000) - 60;
+  const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+  const iat = Math.floor(Date.now() / 1000) - 60;   // 60s in past to handle clock skew
 
   const token = streamVideo.generateUserToken({
     user_id: session.user.id,
-    exp: expirationTime,
-    validity_in_seconds: issuedAt,
+    exp,
+    iat,
   });
 
   return NextResponse.json({ token });
