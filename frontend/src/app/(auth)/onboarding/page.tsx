@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { z } from "zod";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -127,12 +128,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-amber-500 rounded-sm flex items-center justify-center">
-            <Zap className="w-3 h-3 text-black" fill="black" />
-          </div>
-          <span className="font-mono text-xs tracking-widest text-amber-500 uppercase">CareerForge</span>
-        </div>
+        <BrandLogo markClassName="h-8 w-8 rounded-xl" textClassName="text-xs tracking-[0.2em]" />
         <span className="font-mono text-xs text-zinc-600">Step {step + 1} of {STEPS.length}</span>
       </div>
 

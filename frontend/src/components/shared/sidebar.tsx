@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import {
-  Zap,
   LayoutDashboard,
   Map,
   Mic,
@@ -32,12 +32,7 @@ export function Sidebar() {
     <aside className="hidden md:flex flex-col w-56 min-h-screen bg-[#0d0d0d] border-r border-zinc-800/60">
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 py-5 border-b border-zinc-800/60">
-        <div className="w-6 h-6 bg-amber-500 rounded-sm flex items-center justify-center shrink-0">
-          <Zap className="w-3 h-3 text-black" fill="black" />
-        </div>
-        <span className="font-mono text-xs tracking-widest text-amber-500 uppercase">
-          CareerForge
-        </span>
+        <BrandLogo markClassName="h-8 w-8 rounded-xl" textClassName="text-xs tracking-[0.24em]" />
       </div>
 
       {/* Nav */}
