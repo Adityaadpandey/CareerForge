@@ -5,23 +5,9 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Map, Mic, Briefcase, FileCheck,
-  User, Bell, LogOut,
+  User, Bell, LogOut, ChevronLeft,
 } from "lucide-react";
-
-/* ── colour tokens ──────────────────────────────────────────────────────── */
-const C = {
-  bg:          "#0a0a0a",
-  border:      "#2a2a2a",
-  active_bg:   "#1c1007",
-  active_text: "#fb923c",
-  item_text:   "#a3a3a3",
-  label:       "#525252",
-  hover_bg:    "#1a1a1a",
-  accent:      "#f97316",
-  text_pri:    "#f5f5f5",
-  danger_bg:   "#1f0a0a",
-  danger_text: "#ef4444",
-};
+import { useState } from "react";
 
 /* ── nav structure ──────────────────────────────────────────────────────── */
 const SECTIONS = [
@@ -34,8 +20,8 @@ const SECTIONS = [
   {
     label: "Prepare",
     items: [
-      { href: "/roadmap", icon: Map,  label: "Roadmap"   },
-      { href: "/interview", icon: Mic, label: "Interview" },
+      { href: "/roadmap",   icon: Map,  label: "Roadmap"   },
+      { href: "/interview", icon: Mic,  label: "Interview" },
     ],
   },
   {
@@ -49,7 +35,7 @@ const SECTIONS = [
     label: "Account",
     items: [
       { href: "/profile",       icon: User, label: "Profile"       },
-      { href: "/notifications", icon: Bell, label: "Notifications", badge: 3 },
+      { href: "/notifications", icon: Bell, label: "Notifications" },
     ],
   },
 ];
@@ -58,110 +44,37 @@ const SECTIONS = [
 export function Sidebar() {
   const pathname  = usePathname();
   const { data: session } = useSession();
-  const name      = session?.user?.name ?? "Student";
-  const initials  = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+  const name     = session?.user?.name ?? "Student";
+  const initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <aside
-      className="hidden md:flex flex-col"
-      style={{
-        width: 220,
-        minWidth: 220,
-        height: "100vh",
-        position: "sticky",
-        top: 0,
-        background: C.bg,
-        borderRight: `1px solid ${C.border}`,
-        flexShrink: 0,
-      }}
-    >
-      {/* ── Logo ─────────────────────────────────────────────────────────── */}
-      <div style={{ padding: "18px 18px 14px", borderBottom: `1px solid ${C.border}` }}>
-        <div
-          style={{
-            fontFamily: "var(--font-syne), sans-serif",
-            fontWeight: 800,
-            fontSize: 16,
-            color: C.text_pri,
-            letterSpacing: "-0.02em",
-            lineHeight: 1,
-          }}
-        >
-          Career<span style={{ color: C.accent }}>Forge</span>
+    <aside className="sidebar-root hidden md:flex flex-col">
+      {/* ── Logo ───────────────────────────────────────────────────── */}
+      <div className="sidebar-logo">
+        <div className="sidebar-brand">
+          Career<span className="sidebar-brand-accent">Forge</span>
         </div>
-        <div
-          style={{
-            fontSize: 9,
-            color: C.label,
-            letterSpacing: "0.15em",
-            marginTop: 4,
-            textTransform: "uppercase",
-            fontFamily: "monospace",
-          }}
-        >
-          AI Career Platform
-        </div>
+        <div className="sidebar-subtitle">AI Career Platform</div>
       </div>
 
-      {/* ── Nav ──────────────────────────────────────────────────────────── */}
-      <nav style={{ flex: 1, paddingTop: 8, overflowY: "auto" }}>
+      {/* ── Nav ────────────────────────────────────────────────────── */}
+      <nav className="sidebar-nav">
         {SECTIONS.map((section) => (
-          <div key={section.label} style={{ marginBottom: 2 }}>
-            {/* Section label */}
-            <div
-              style={{
-                fontSize: 10,
-                color: C.label,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                fontFamily: "monospace",
-                padding: "8px 18px 3px",
-              }}
-            >
-              {section.label}
-            </div>
+          <div key={section.label} className="sidebar-section">
+            <div className="sidebar-section-label">{section.label}</div>
 
-            {/* Items */}
-            {section.items.map(({ href, icon: Icon, label, badge }) => {
+            {section.items.map(({ href, icon: Icon, label }) => {
               const active = pathname === href || pathname.startsWith(href + "/");
               return (
                 <Link
                   key={href}
                   href={href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 9,
-                    padding: "8px 18px",
-                    fontSize: 13,
-                    color: active ? C.active_text : C.item_text,
-                    fontWeight: active ? 500 : 400,
-                    background: active ? C.active_bg : "transparent",
-                    textDecoration: "none",
-                    transition: "all 0.15s ease",
-                    position: "relative",
-                  }}
-                  className="sidebar-item"
-                  data-active={active}
+                  className={`sidebar-link ${active ? "sidebar-link--active" : ""}`}
                 >
-                  <Icon size={14} strokeWidth={active ? 2 : 1.75} />
-                  <span style={{ flex: 1 }}>{label}</span>
-                  {badge != null && (
-                    <span
-                      style={{
-                        background: C.danger_text,
-                        color: "#fff",
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: "1px 5px",
-                        borderRadius: 99,
-                        lineHeight: 1.5,
-                        letterSpacing: "0.01em",
-                      }}
-                    >
-                      {badge}
-                    </span>
-                  )}
+                  {/* Active indicator line */}
+                  {active && <span className="sidebar-active-indicator" />}
+                  <Icon className="sidebar-link-icon" />
+                  <span className="sidebar-link-label">{label}</span>
                 </Link>
               );
             })}
@@ -169,85 +82,210 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* ── User + sign out ───────────────────────────────────────────────── */}
-      <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${C.border}` }}>
-        {/* Avatar row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 6px 10px" }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: C.active_bg,
-              border: `1px solid #7c3a0a`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 800,
-                color: C.active_text,
-                fontFamily: "var(--font-syne), sans-serif",
-              }}
-            >
-              {initials}
-            </span>
+      {/* ── User + sign out ────────────────────────────────────────── */}
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">
+            <span className="sidebar-avatar-text">{initials}</span>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: C.text_pri,
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {name}
-            </div>
-            <div style={{ fontSize: 10, color: C.label, marginTop: 1 }}>Student</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{name}</div>
+            <div className="sidebar-user-role">Student</div>
           </div>
         </div>
 
-        {/* Sign out */}
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="sidebar-signout"
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "7px 8px",
-            fontSize: 12,
-            color: C.label,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            borderRadius: 6,
-            transition: "all 0.15s ease",
-            textAlign: "left",
-          }}
         >
-          <LogOut size={13} />
+          <LogOut className="sidebar-signout-icon" />
           Sign out
         </button>
       </div>
 
-      {/* Hover styles injected once */}
       <style>{`
-        .sidebar-item:not([data-active="true"]):hover {
-          background: ${C.hover_bg} !important;
-          color: ${C.text_pri} !important;
+        .sidebar-root {
+          width: 220px;
+          min-width: 220px;
+          height: 100vh;
+          position: sticky;
+          top: 0;
+          background: #0a0a0a;
+          border-right: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
+          overflow: hidden;
+        }
+
+        /* Logo */
+        .sidebar-logo {
+          padding: 20px 20px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .sidebar-brand {
+          font-family: var(--font-syne), sans-serif;
+          font-weight: 800;
+          font-size: 17px;
+          color: #f5f5f5;
+          letter-spacing: -0.02em;
+          line-height: 1;
+        }
+        .sidebar-brand-accent {
+          background: linear-gradient(135deg, #f97316, #fbbf24);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        .sidebar-subtitle {
+          font-size: 9px;
+          color: #525252;
+          letter-spacing: 0.14em;
+          margin-top: 5px;
+          text-transform: uppercase;
+          font-family: var(--font-geist-mono), monospace;
+        }
+
+        /* Nav */
+        .sidebar-nav {
+          flex: 1;
+          padding-top: 10px;
+          overflow-y: auto;
+        }
+        .sidebar-nav::-webkit-scrollbar {
+          width: 0;
+        }
+        .sidebar-section {
+          margin-bottom: 4px;
+        }
+        .sidebar-section-label {
+          font-size: 10px;
+          color: #404040;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          font-family: var(--font-geist-mono), monospace;
+          font-weight: 500;
+          padding: 10px 20px 4px;
+        }
+
+        /* Links */
+        .sidebar-link {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 20px;
+          font-size: 13px;
+          color: #737373;
+          font-weight: 400;
+          background: transparent;
+          text-decoration: none;
+          transition: all 0.15s ease;
+          position: relative;
+          border-radius: 0;
+        }
+        .sidebar-link:hover {
+          color: #d4d4d4;
+          background: rgba(255,255,255,0.03);
+        }
+
+        .sidebar-link--active {
+          color: #fb923c;
+          font-weight: 500;
+          background: rgba(249,115,22,0.06);
+        }
+        .sidebar-link--active:hover {
+          color: #fb923c;
+          background: rgba(249,115,22,0.08);
+        }
+
+        .sidebar-active-indicator {
+          position: absolute;
+          left: 0;
+          top: 6px;
+          bottom: 6px;
+          width: 2px;
+          background: linear-gradient(180deg, #f97316, #fbbf24);
+          border-radius: 0 2px 2px 0;
+        }
+
+        .sidebar-link-icon {
+          width: 15px;
+          height: 15px;
+          flex-shrink: 0;
+        }
+        .sidebar-link-label {
+          flex: 1;
+        }
+
+        /* Footer */
+        .sidebar-footer {
+          padding: 12px 14px 14px;
+          border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .sidebar-user {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 6px 10px;
+        }
+
+        .sidebar-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, rgba(249,115,22,0.15), rgba(251,191,36,0.08));
+          border: 1px solid rgba(249,115,22,0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .sidebar-avatar-text {
+          font-size: 11px;
+          font-weight: 800;
+          color: #fb923c;
+          font-family: var(--font-syne), sans-serif;
+        }
+
+        .sidebar-user-info {
+          flex: 1;
+          min-width: 0;
+        }
+        .sidebar-user-name {
+          font-size: 12px;
+          color: #e5e5e5;
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .sidebar-user-role {
+          font-size: 10px;
+          color: #525252;
+          margin-top: 1px;
+        }
+
+        /* Sign out */
+        .sidebar-signout {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 7px 8px;
+          font-size: 12px;
+          color: #525252;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          border-radius: 8px;
+          transition: all 0.15s ease;
+          text-align: left;
         }
         .sidebar-signout:hover {
-          background: ${C.danger_bg} !important;
-          color: ${C.danger_text} !important;
+          background: rgba(239,68,68,0.06);
+          color: #ef4444;
+        }
+        .sidebar-signout-icon {
+          width: 13px;
+          height: 13px;
         }
       `}</style>
     </aside>

@@ -1,19 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  ArrowUpRight,
   Bell,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Code2,
+  ExternalLink,
   Flame,
   GitBranch,
   GitPullRequest,
   Lock,
+  MapPin,
+  Mic,
   Play,
   RefreshCw,
+  Sparkles,
   Star,
   Target,
   TrendingDown,
@@ -21,6 +27,8 @@ import {
   Trophy,
   Zap,
 } from "lucide-react";
+
+/* ── Types ─────────────────────────────────────────────────────────────── */
 
 type Mission = {
   id: string;
@@ -103,8 +111,8 @@ type LCData = {
 const shellClass =
   "rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(19,19,20,0.96),rgba(11,11,12,0.98))] shadow-[0_18px_70px_rgba(0,0,0,0.32)]";
 const cardClass =
-  "rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.92),rgba(15,15,18,0.94))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
-const sectionEyebrow = "text-[10px] uppercase tracking-[0.24em] text-zinc-500 font-mono";
+  "rounded-[1.6rem] border border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.92),rgba(15,15,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+const sectionEyebrow = "text-[11px] uppercase tracking-[0.24em] text-zinc-500 font-mono";
 
 const TYPE_STYLES: Record<string, string> = {
   BUILD: "border-orange-500/20 bg-orange-500/10 text-orange-300",
@@ -136,28 +144,108 @@ function formatDate(date: string | null) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
+
+/* ── Shared Style Tokens ──────────────────────────────────────────────── */
+
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-[#151518] to-[#0e0e10] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3)]";
+
+const CARD_INNER =
+  "rounded-xl border border-white/[0.05] bg-white/[0.02] p-4";
+
+const EYEBROW =
+  "text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500";
+
+const TYPE_COLORS: Record<string, { border: string; bg: string; text: string; glow: string }> = {
+  BUILD:       { border: "border-orange-500/20", bg: "bg-orange-500/10", text: "text-orange-400", glow: "shadow-orange-500/20" },
+  SOLVE:       { border: "border-sky-500/20",    bg: "bg-sky-500/10",    text: "text-sky-400",    glow: "shadow-sky-500/20" },
+  COMMUNICATE: { border: "border-emerald-500/20",bg: "bg-emerald-500/10",text: "text-emerald-400", glow: "shadow-emerald-500/20" },
+};
+
+const STATUS_CONFIG: Record<string, { border: string; bg: string; text: string; icon: typeof Play }> = {
+  COMPLETED:   { border: "border-emerald-500/20", bg: "bg-emerald-500/10", text: "text-emerald-400", icon: CheckCircle2 },
+  IN_PROGRESS: { border: "border-orange-500/20",  bg: "bg-orange-500/10",  text: "text-orange-400",  icon: Play },
+  AVAILABLE:   { border: "border-sky-500/20",     bg: "bg-sky-500/10",     text: "text-sky-400",     icon: Sparkles },
+  LOCKED:      { border: "border-white/[0.06]",   bg: "bg-white/[0.03]",   text: "text-zinc-600",    icon: Lock },
+};
+
+/* ── Animated Score Ring (SVG) ─────────────────────────────────────────── */
+
+function ScoreRing({ score, size = 140 }: { score: number; size?: number }) {
+  const r = (size - 16) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="score-ring-svg -rotate-90">
+        {/* Track */}
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={10}
+        />
+        {/* Glow layer */}
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none"
+          stroke="rgba(249,115,22,0.15)"
+          strokeWidth={18}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="score-ring-progress"
+          style={{ filter: "blur(6px)" }}
+        />
+        {/* Progress */}
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none"
+          stroke="url(#scoreGradient)"
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="score-ring-progress"
+        />
+        <defs>
+          <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#fbbf24" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-3xl font-bold tracking-tight text-white">{Math.round(score)}</span>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Score</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Stat Card ─────────────────────────────────────────────────────────── */
 
 function StatCard({
   label,
   value,
   hint,
   accent,
-  className,
 }: {
   label: string;
   value: string | number;
   hint: string;
-  accent?: string;
-  className?: string;
+  accent: string;
 }) {
   return (
-    <div className={cn(cardClass, "p-4", className)}>
+    <div className={cn(cardClass, "p-4")}>
       <div className={sectionEyebrow}>{label}</div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">{value}</div>
-      <div className={cn("mt-1 text-xs", accent)}>{hint}</div>
+      <div className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</div>
+      <div className={cn("mt-2 text-sm", accent)}>{hint}</div>
     </div>
   );
 }
@@ -165,31 +253,33 @@ function StatCard({
 function ScoreRing({ score }: { score: number }) {
   return (
     <div
-      className="relative h-24 w-24 shrink-0 rounded-full"
+      className="relative h-28 w-28 shrink-0 rounded-full"
       style={{
         background: `conic-gradient(from -90deg, rgba(249,115,22,1) 0% ${score}%, rgba(39,39,42,1) ${score}% 100%)`,
       }}
     >
       <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full border border-white/8 bg-[#121214]">
-        <div className="text-2xl font-semibold tracking-[-0.06em] text-white">{Math.round(score)}</div>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Score</div>
+        <div className="text-3xl font-semibold tracking-[-0.06em] text-white">{Math.round(score)}</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Readiness</div>
       </div>
     </div>
   );
 }
 
+/* ── Readiness Card ────────────────────────────────────────────────────── */
+
 function ReadinessCard({ readiness, className }: { readiness: Readiness | null; className?: string }) {
   const pillars = readiness
     ? [
-        { label: "DSA", value: readiness.dsa, tone: "bg-orange-400" },
-        { label: "Development", value: readiness.dev, tone: "bg-emerald-400" },
-        { label: "Communication", value: readiness.comm, tone: "bg-amber-300" },
-        { label: "Consistency", value: readiness.consistency, tone: "bg-fuchsia-400" },
+        { label: "DSA", value: readiness.dsa, color: "#f97316" },
+        { label: "Development", value: readiness.dev, color: "#22c55e" },
+        { label: "Communication", value: readiness.comm, color: "#eab308" },
+        { label: "Consistency", value: readiness.consistency, color: "#a855f7" },
       ]
     : [];
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cn(cardClass, "lg:col-span-4")}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Readiness</div>
@@ -207,12 +297,12 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col gap-6">
-        <div className="flex items-center gap-4">
+      <div className="mt-8 grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex items-center gap-5">
           {readiness ? (
             <ScoreRing score={readiness.total} />
           ) : (
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-3xl text-zinc-600">
+            <div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-4xl text-zinc-600">
               —
             </div>
           )}
@@ -220,45 +310,45 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
           <div>
             {readiness ? (
               <>
-                <div className="mt-1 flex items-center gap-2 text-xs">
+                <div className="text-4xl font-semibold tracking-[-0.06em] text-white">{Math.round(readiness.total)}</div>
+                <div className="mt-2 flex items-center gap-2 text-sm">
                   {readiness.delta !== null ? (
                     <>
                       {readiness.delta >= 0 ? (
-                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                        <TrendingUp className="h-4 w-4 text-emerald-400" />
                       ) : (
-                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                        <TrendingDown className="h-4 w-4 text-rose-400" />
                       )}
                       <span className={readiness.delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
                         {readiness.delta >= 0 ? "+" : ""}
-                        {readiness.delta.toFixed(1)} /wk
+                        {readiness.delta.toFixed(1)} this week
                       </span>
                     </>
                   ) : (
-                    <span className="text-zinc-500">Fresh baseline</span>
+                    <span className="text-zinc-500">Fresh baseline captured</span>
                   )}
                 </div>
-                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-orange-500/20 bg-orange-500/10 px-2.5 py-0.5 text-[10px] text-orange-300">
-                  <Target className="h-3 w-3" />
-                  {readiness.total >= 75 ? "On track" : "Needs prep"}
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
+                  <Target className="h-3.5 w-3.5" />
+                  {readiness.total >= 75 ? "On track for stronger interviews" : "Needs more prep before top roles"}
                 </div>
               </>
             ) : (
-              <div className="text-xs text-zinc-500">
-                Score appears after analysis.
+              <div className="max-w-xs text-sm leading-6 text-zinc-500">
+                Score appears after analysis runs.
               </div>
             )}
           </div>
-        </div>
 
         {pillars.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {pillars.map((pillar) => (
-              <div key={pillar.label} className="rounded-xl border border-white/8 bg-black/20 p-3">
-                <div className="mb-2 flex items-center justify-between text-xs">
-                  <span className="text-zinc-400">{pillar.label}</span>
+              <div key={pillar.label} className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <div className="mb-3 flex items-center justify-between text-sm">
+                  <span className="text-zinc-300">{pillar.label}</span>
                   <span className="font-medium text-white">{Math.round(pillar.value)}</span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
                   <div className={cn("h-full rounded-full", pillar.tone)} style={{ width: `${pillar.value}%` }} />
                 </div>
               </div>
@@ -267,65 +357,79 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
         )}
       </div>
 
-      {readiness?.weakTopics.length ? (
-        <div className="mt-6 border-t border-white/8 pt-5">
-          <div className={sectionEyebrow}>Weak Topics</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {readiness.weakTopics.slice(0, 5).map((topic) => (
-              <span
-                key={topic}
-                className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300"
-              >
-                {topic}
-              </span>
-            ))}
+        {/* Weak Topics inline */}
+        {readiness && readiness.weakTopics.length > 0 && (
+          <div className="mt-5 border-t border-white/[0.05] pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">Focus areas</span>
+              {readiness.weakTopics.slice(0, 5).map((topic) => (
+                <span
+                  key={topic}
+                  className="rounded-full border border-rose-500/15 bg-rose-500/[0.06] px-2.5 py-1 text-[11px] font-medium text-rose-300/80"
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
     </section>
   );
 }
 
-function MissionItem({ mission }: { mission: Mission }) {
-  const statusTone =
-    mission.status === "COMPLETED"
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-      : mission.status === "IN_PROGRESS"
-        ? "border-orange-500/20 bg-orange-500/10 text-orange-300"
-        : mission.status === "AVAILABLE"
-          ? "border-sky-500/20 bg-sky-500/10 text-sky-300"
-          : "border-white/8 bg-white/[0.03] text-zinc-500";
+/* ── Mission Item ──────────────────────────────────────────────────────── */
 
-  const Icon =
-    mission.status === "COMPLETED" ? CheckCircle2 : mission.status === "LOCKED" ? Lock : Play;
+function MissionItem({ mission }: { mission: Mission }) {
+  const sc = STATUS_CONFIG[mission.status] ?? STATUS_CONFIG.LOCKED;
+  const tc = TYPE_COLORS[mission.type];
+  const Icon = sc.icon;
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+    <div className={cn(CARD_INNER, "group/mission transition-all duration-200 hover:border-white/[0.1] hover:bg-white/[0.04]")}>
       <div className="flex items-start gap-3">
-        <div className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border", statusTone)}>
-          <Icon className="h-4 w-4" />
+        <div className={cn(
+          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+          sc.border, sc.bg,
+        )}>
+          <Icon className={cn("h-3.5 w-3.5", sc.text)} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-medium text-white">{mission.title}</h3>
-            <span className={cn("rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em]", TYPE_STYLES[mission.type] ?? "border-white/8 bg-white/[0.04] text-zinc-400")}>
-              {mission.type}
-            </span>
+            <h4 className="text-sm font-medium text-zinc-200 group-hover/mission:text-white transition-colors">
+              {mission.title}
+            </h4>
+            {tc && (
+              <span className={cn(
+                "rounded-md border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]",
+                tc.border, tc.bg, tc.text,
+              )}>
+                {mission.type}
+              </span>
+            )}
           </div>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-500">
-            <span>{mission.estimatedHours}h effort</span>
-            {mission.deadline ? <span>Due {formatDate(mission.deadline)}</span> : null}
+          <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-zinc-600">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {mission.estimatedHours}h
+            </span>
+            {mission.deadline && (
+              <span>Due {formatDate(mission.deadline)}</span>
+            )}
             <span className="capitalize">{mission.status.toLowerCase().replace("_", " ")}</span>
           </div>
         </div>
+        <ChevronRight className="h-4 w-4 text-zinc-700 opacity-0 transition-all group-hover/mission:opacity-100 group-hover/mission:text-zinc-400" />
       </div>
     </div>
   );
 }
 
+/* ── Missions Panel ────────────────────────────────────────────────────── */
+
 function MissionsPanel({ missions, className }: { missions: Mission[]; className?: string }) {
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cn(cardClass, "xl:col-span-7")}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Roadmap</div>
@@ -336,22 +440,26 @@ function MissionsPanel({ missions, className }: { missions: Mission[]; className
         </Link>
       </div>
 
-      <div className="mt-5 space-y-3">
-        {missions.length ? (
-          missions.map((mission) => <MissionItem key={mission.id} mission={mission} />)
-        ) : (
-          <div className="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center text-sm text-zinc-500">
-            Missions appear after gap analysis runs.
-          </div>
-        )}
+        <div className="mt-4 space-y-2">
+          {missions.length ? (
+            missions.map((m) => <MissionItem key={m.id} mission={m} />)
+          ) : (
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.06] py-10 text-center">
+              <Sparkles className="h-6 w-6 text-zinc-700" />
+              <p className="text-sm text-zinc-600">Missions appear after gap analysis.</p>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
 }
 
+/* ── Job Match Card ────────────────────────────────────────────────────── */
+
 function JobMatchesPanel({ jobMatches, className }: { jobMatches: JobMatch[]; className?: string }) {
   return (
-    <section className={cn(cardClass, "flex flex-col", className)}>
+    <section className={cn(cardClass, "xl:col-span-5")}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Jobs</div>
@@ -362,63 +470,84 @@ function JobMatchesPanel({ jobMatches, className }: { jobMatches: JobMatch[]; cl
         </Link>
       </div>
 
-      <div className="mt-5 space-y-3">
-        {jobMatches.length ? (
-          jobMatches.map((job) => (
-            <div key={job.id} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.05] text-sm font-semibold text-white">
-                      {job.company[0]}
+        <div className="mt-4 space-y-2">
+          {jobMatches.length ? (
+            jobMatches.map((job) => (
+              <div
+                key={job.id}
+                className={cn(CARD_INNER, "group/job transition-all duration-200 hover:border-white/[0.1] hover:bg-white/[0.04]")}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Company Avatar */}
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-white/[0.08] to-white/[0.03] text-sm font-bold text-zinc-300">
+                    {job.company[0]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-zinc-200 group-hover/job:text-white transition-colors truncate">
+                      {job.title}
                     </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-white">{job.title}</div>
-                      <div className="mt-1 text-xs text-zinc-500">
-                        {job.company}
-                        {job.location ? ` · ${job.location}` : job.isRemote ? " · Remote" : ""}
-                      </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-600">
+                      <span>{job.company}</span>
+                      {(job.location || job.isRemote) && (
+                        <>
+                          <span className="text-zinc-700">·</span>
+                          <span className="flex items-center gap-0.5">
+                            <MapPin className="h-2.5 w-2.5" />
+                            {job.location ?? "Remote"}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                    {Math.round(job.matchScore)}% match
-                  </span>
-                  <a
-                    href={job.applyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-300 transition-colors hover:bg-orange-500/15"
-                  >
-                    Apply
-                  </a>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      "rounded-md px-2 py-1 text-[10px] font-bold",
+                      job.matchScore >= 80
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : job.matchScore >= 60
+                          ? "bg-amber-500/10 text-amber-400"
+                          : "bg-zinc-500/10 text-zinc-400",
+                    )}>
+                      {Math.round(job.matchScore)}%
+                    </span>
+                    <a
+                      href={job.applyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] text-zinc-600 transition-all hover:border-orange-500/30 hover:text-orange-400"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.06] py-10 text-center">
+              <Target className="h-6 w-6 text-zinc-700" />
+              <p className="text-sm text-zinc-600">Run analysis to get job matches.</p>
             </div>
-          ))
-        ) : (
-          <div className="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">
-            <div className="text-sm text-zinc-400">No matches yet</div>
-            <div className="mt-2 text-sm text-zinc-500">Run analysis to get personalized job matches.</div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <div className="mt-5 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-white">Generate a tailored CV for any role</div>
-            <div className="mt-1 text-sm text-orange-200/80">Auto-generate a role-specific draft in one click.</div>
+        {/* Auto-Generate CTA */}
+        <div className="mt-4 rounded-xl border border-orange-500/15 bg-gradient-to-r from-orange-500/[0.06] to-transparent p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-white">Auto-generate a tailored CV</div>
+              <div className="mt-0.5 text-[11px] text-zinc-500">Role-specific draft in one click</div>
+            </div>
+            <button className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-1.5 text-xs font-semibold text-black transition-all hover:shadow-lg hover:shadow-orange-500/20">
+              Generate
+            </button>
           </div>
-          <button className="rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-orange-400">
-            Auto-generate
-          </button>
         </div>
       </div>
     </section>
   );
 }
+
+/* ── GitHub Card ───────────────────────────────────────────────────────── */
 
 function GitHubCard({ conn, className }: { conn: Connection | undefined; className?: string }) {
   const gh = parseGitHub(conn);
@@ -426,10 +555,10 @@ function GitHubCard({ conn, className }: { conn: Connection | undefined; classNa
   const topProject = gh?.repositories?.top_projects?.[0];
   const repos = gh?.profile?.public_repos ?? 0;
   const prs = gh?.contributions?.total_prs ?? 0;
-  const commits = gh?.repositories?.top_projects?.reduce((sum, project) => sum + (project.total_commits ?? 0), 0) ?? 0;
+  const commits = gh?.repositories?.top_projects?.reduce((s, p) => s + (p.total_commits ?? 0), 0) ?? 0;
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cardClass}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>GitHub</div>
@@ -438,62 +567,58 @@ function GitHubCard({ conn, className }: { conn: Connection | undefined; classNa
         <div className="text-xs text-zinc-500">{formatDate(conn?.lastSyncedAt ?? null) ?? "Not synced"}</div>
       </div>
 
-      <div className="mt-5">
-        {!conn ? (
-          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
-            Connect GitHub in your profile to unlock this panel.
-          </div>
-        ) : syncing || !gh ? (
-          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/10 px-4 py-6 text-sm text-orange-300">
-            {syncing ? "Analyzing your GitHub…" : "No GitHub data yet."}
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { icon: GitBranch, label: "Repos", value: repos },
-                { icon: Code2, label: "Commits", value: commits },
-                { icon: GitPullRequest, label: "PRs", value: prs },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="flex items-center gap-2 text-zinc-500">
-                    <Icon className="h-4 w-4 text-orange-300" />
-                    <span className="text-[11px] uppercase tracking-[0.18em]">{label}</span>
+        <div className="mt-4">
+          {!conn ? (
+            <EmptyState icon={GitBranch} text="Connect GitHub to unlock." />
+          ) : syncing || !gh ? (
+            <SyncingState text={syncing ? "Analyzing GitHub…" : "No data yet."} />
+          ) : (
+            <>
+              <div className="grid gap-2 grid-cols-3">
+                {[
+                  { icon: GitBranch, label: "Repos", value: repos },
+                  { icon: Code2, label: "Commits", value: commits },
+                  { icon: GitPullRequest, label: "PRs", value: prs },
+                ].map(({ icon: Ic, label, value }) => (
+                  <div key={label} className={CARD_INNER}>
+                    <Ic className="h-3.5 w-3.5 text-zinc-600 mb-2" />
+                    <div className="text-xl font-bold tracking-tight text-white">{value}</div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-600 mt-0.5">{label}</div>
                   </div>
-                  <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">{value}</div>
-                </div>
-              ))}
-            </div>
-
-            {topProject ? (
-              <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white">{topProject.name}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{topProject.total_commits} commits across recent work</div>
-                  </div>
-                  {topProject.stars ? (
-                    <div className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
-                      <Star className="h-3.5 w-3.5" />
-                      {topProject.stars}
-                    </div>
-                  ) : null}
-                </div>
+                ))}
               </div>
-            ) : null}
-          </>
-        )}
+
+              {topProject && (
+                <div className={cn(CARD_INNER, "mt-2")}>
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-zinc-200">{topProject.name}</div>
+                      <div className="text-[11px] text-zinc-600 mt-0.5">{topProject.total_commits} commits</div>
+                    </div>
+                    {topProject.stars > 0 && (
+                      <div className="flex items-center gap-1 text-amber-400 text-xs">
+                        <Star className="h-3 w-3" /> {topProject.stars}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
 }
+
+/* ── LeetCode Card ─────────────────────────────────────────────────────── */
 
 function LeetCodeCard({ conn, className }: { conn: Connection | undefined; className?: string }) {
   const lc = parseLeetCode(conn);
   const syncing = conn?.syncStatus === "SYNCING" || conn?.syncStatus === "PENDING";
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cardClass}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>LeetCode</div>
@@ -502,63 +627,68 @@ function LeetCodeCard({ conn, className }: { conn: Connection | undefined; class
         <div className="text-xs text-zinc-500">{formatDate(conn?.lastSyncedAt ?? null) ?? "Not synced"}</div>
       </div>
 
-      <div className="mt-5">
-        {!conn ? (
-          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
-            Connect LeetCode in your profile to unlock this panel.
-          </div>
-        ) : syncing || !lc ? (
-          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/10 px-4 py-6 text-sm text-orange-300">
-            {syncing ? "Fetching LeetCode stats…" : "No LeetCode data yet."}
-          </div>
-        ) : (
-          <>
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-5 text-center">
-              <div className="text-4xl font-semibold tracking-[-0.06em] text-white">{lc.total_solved ?? 0}</div>
-              <div className="mt-2 text-sm text-zinc-500">problems solved</div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Easy", value: lc.easy_solved ?? 0, tone: "bg-emerald-400" },
-                { label: "Medium", value: lc.medium_solved ?? 0, tone: "bg-amber-300" },
-                { label: "Hard", value: lc.hard_solved ?? 0, tone: "bg-rose-400" },
-              ].map((row) => {
-                const total = lc.total_solved || 1;
-                return (
-                  <div key={row.label}>
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="text-zinc-400">{row.label}</span>
-                      <span className="text-white">{row.value}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
-                      <div className={cn("h-full rounded-full", row.tone)} style={{ width: `${(row.value / total) * 100}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className={sectionEyebrow}>Contest</div>
-                <div className="mt-2 text-xl font-semibold text-white">{Math.round(lc.contest_rating ?? 0)}</div>
+        <div className="mt-4">
+          {!conn ? (
+            <EmptyState icon={Code2} text="Connect LeetCode to unlock." />
+          ) : syncing || !lc ? (
+            <SyncingState text={syncing ? "Fetching stats…" : "No data yet."} />
+          ) : (
+            <>
+              {/* Total solved hero */}
+              <div className={cn(CARD_INNER, "text-center")}>
+                <div className="text-4xl font-bold tracking-tight text-white">{lc.total_solved ?? 0}</div>
+                <div className="mt-1 text-xs text-zinc-500">problems solved</div>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className={sectionEyebrow}>Rank</div>
-                <div className="mt-2 text-xl font-semibold text-white">
-                  {lc.global_ranking ? lc.global_ranking.toLocaleString() : "—"}
+
+              {/* Difficulty bars */}
+              <div className="mt-3 space-y-2.5">
+                {[
+                  { label: "Easy", value: lc.easy_solved ?? 0, color: "#22c55e" },
+                  { label: "Medium", value: lc.medium_solved ?? 0, color: "#eab308" },
+                  { label: "Hard", value: lc.hard_solved ?? 0, color: "#ef4444" },
+                ].map((row) => {
+                  const total = lc.total_solved || 1;
+                  return (
+                    <div key={row.label}>
+                      <div className="mb-1.5 flex items-center justify-between text-xs">
+                        <span className="text-zinc-500">{row.label}</span>
+                        <span className="font-semibold text-zinc-300">{row.value}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.04]">
+                        <div
+                          className="pillar-bar h-full rounded-full"
+                          style={{ width: `${(row.value / total) * 100}%`, background: row.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Contest + Rank */}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className={CARD_INNER}>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">Contest</div>
+                  <div className="mt-1.5 text-lg font-bold text-white">{Math.round(lc.contest_rating ?? 0)}</div>
+                </div>
+                <div className={CARD_INNER}>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-600">Rank</div>
+                  <div className="mt-1.5 text-lg font-bold text-white">
+                    {lc.global_ranking ? lc.global_ranking.toLocaleString() : "—"}
+                  </div>
                 </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
 }
 
-function StreakCard({ streakDays, className }: { streakDays: number; className?: string }) {
+/* ── Streak Card ───────────────────────────────────────────────────────── */
+
+function StreakCard({ streakDays }: { streakDays: number }) {
   const squares = Array.from({ length: 28 }, (_, index) => {
     const fromEnd = 27 - index;
     if (fromEnd < streakDays) return "bg-orange-400";
@@ -567,7 +697,7 @@ function StreakCard({ streakDays, className }: { streakDays: number; className?:
   });
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cardClass}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className={sectionEyebrow}>Activity</div>
@@ -579,31 +709,41 @@ function StreakCard({ streakDays, className }: { streakDays: number; className?:
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-7 gap-2">
-        {squares.map((tone, index) => (
-          <div key={index} className={cn("aspect-square rounded-md", tone)} />
-        ))}
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-          <div className="text-2xl font-semibold tracking-[-0.04em] text-white">{streakDays}</div>
-          <div className="mt-1 text-sm text-zinc-500">Current streak</div>
+        {/* Contribution grid */}
+        <div className="mt-4 grid grid-cols-7 gap-[5px]">
+          {squares.map((type, i) => (
+            <div
+              key={i}
+              className={cn(
+                "aspect-square rounded-[4px] transition-colors duration-200",
+                type === "active" && "bg-orange-400 shadow-sm shadow-orange-400/20",
+                type === "warm" && "bg-orange-500/25",
+                type === "cold" && "bg-white/[0.04]",
+              )}
+            />
+          ))}
         </div>
-        <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-          <div className="text-2xl font-semibold tracking-[-0.04em] text-white">—</div>
-          <div className="mt-1 text-sm text-zinc-500">Best streak</div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className={CARD_INNER}>
+            <div className="text-xl font-bold text-white">{streakDays}</div>
+            <div className="text-[10px] text-zinc-600 mt-0.5 uppercase tracking-wide">Current</div>
+          </div>
+          <div className={CARD_INNER}>
+            <div className="text-xl font-bold text-white">—</div>
+            <div className="text-[10px] text-zinc-600 mt-0.5 uppercase tracking-wide">Best</div>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function WeakTopicsPanel({ weakTopics, className }: { weakTopics: string[]; className?: string }) {
+function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
   const topics = (weakTopics.length ? weakTopics : Object.keys(TOPIC_META)).slice(0, 6);
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cn(cardClass, "xl:col-span-5")}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Focus</div>
@@ -612,33 +752,48 @@ function WeakTopicsPanel({ weakTopics, className }: { weakTopics: string[]; clas
         <span className="text-sm text-orange-300">Fix these first</span>
       </div>
 
-      <div className="mt-5 space-y-4">
-        {topics.map((topic) => {
-          const meta = TOPIC_META[topic] ?? { color: "#f59e0b", score: 50 };
-          return (
-            <div key={topic}>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-zinc-300">{topic}</span>
-                <span style={{ color: meta.color }}>{meta.score}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
-                <div className="h-full rounded-full" style={{ width: `${meta.score}%`, background: meta.color }} />
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item, i) => (
+            <div
+              key={`${item.time}-${i}`}
+              className={cn(CARD_INNER, "flex gap-3 transition-colors hover:bg-white/[0.04]")}
+            >
+              <div
+                className="mt-1.5 h-2 w-2 shrink-0 rounded-full ring-2 ring-offset-1"
+                style={{
+                  background: item.dot,
+                  ringColor: `${item.dot}33`,
+                  // @ts-expect-error custom property for ring glow
+                  "--tw-ring-offset-color": "transparent",
+                  "--tw-ring-color": `${item.dot}33`,
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <div
+                  className="text-sm leading-relaxed text-zinc-400"
+                  dangerouslySetInnerHTML={{
+                    __html: item.html
+                      .replace(/<b>/g, '<span class="font-medium text-zinc-200">')
+                      .replace(/<\/b>/g, "</span>"),
+                  }}
+                />
+                {item.time && <div className="mt-1 text-[10px] text-zinc-600">{item.time}</div>}
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-function RecentActivityPanel({ activities, className }: { activities: ActivityItem[]; className?: string }) {
+function RecentActivityPanel({ activities }: { activities: ActivityItem[] }) {
   const items = activities.length
     ? activities
     : [{ dot: "#525252", html: "Your activity will appear here as you complete missions and interviews", time: "" }];
 
   return (
-    <section className={cn(cardClass, className)}>
+    <section className={cn(cardClass, "xl:col-span-7")}>
       <div>
         <div className={sectionEyebrow}>Feed</div>
         <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Recent activity</h3>
@@ -669,6 +824,67 @@ function RecentActivityPanel({ activities, className }: { activities: ActivityIt
   );
 }
 
+/* ── Shared empty/syncing states ───────────────────────────────────────── */
+
+function EmptyState({ icon: Icon, text }: { icon: typeof Code2; text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.06] py-8 text-center">
+      <Icon className="h-6 w-6 text-zinc-700" />
+      <p className="text-sm text-zinc-600">{text}</p>
+    </div>
+  );
+}
+
+function SyncingState({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-orange-500/15 bg-orange-500/[0.05] px-4 py-4 text-sm text-orange-300/80">
+      <RefreshCw className="h-4 w-4 animate-spin text-orange-400" />
+      {text}
+    </div>
+  );
+}
+
+/* ── Banner ─────────────────────────────────────────────────────────────── */
+
+function Banner({
+  kind,
+  text,
+  action,
+  onClick,
+  loading,
+}: {
+  kind: "warning" | "neutral";
+  text: string;
+  action?: string;
+  onClick?: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <div className={cn(
+      "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3",
+      kind === "warning"
+        ? "border-amber-500/15 bg-amber-500/[0.05] text-amber-300/80"
+        : "border-white/[0.06] bg-white/[0.02] text-zinc-400",
+    )}>
+      <div className="flex items-center gap-2.5 text-sm">
+        <Zap className="h-4 w-4 shrink-0" />
+        <span>{text}</span>
+      </div>
+      {action && onClick && (
+        <button
+          onClick={onClick}
+          disabled={loading}
+          className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-1.5 text-xs font-semibold text-black transition-all hover:shadow-lg hover:shadow-orange-500/20 disabled:opacity-50"
+        >
+          {loading ? "Running…" : action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
 function Header({
   firstName,
   targetRole,
@@ -687,94 +903,61 @@ function Header({
   refreshing: boolean;
 }) {
   return (
-    <section className={cn(shellClass, "sticky top-0 z-10 mb-6 p-5 backdrop-blur")}>
+    <header className="sticky top-0 z-20 mb-5 rounded-2xl border border-white/[0.05] bg-[#0c0c0c]/80 p-5 backdrop-blur-xl backdrop-saturate-150">
+      {/* Subtle top-edge shine */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className={sectionEyebrow}>Dashboard</div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white">
-            Welcome back, {firstName}
+          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            {getGreeting()}, {firstName}
           </h1>
-          <p className="mt-2 text-sm text-zinc-400">
-            Track readiness, keep missions moving, and stay close to the roles you want.
+          <p className="mt-1 text-sm text-zinc-500">
+            Track readiness, keep missions moving, and land the roles you want.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {targetRole ? (
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-              Target role: <span className="text-white">{targetRole}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {targetRole && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-400">
+              <Target className="h-3 w-3 text-orange-400" />
+              {targetRole}
             </span>
-          ) : null}
-          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">
-            {streakDays}d streak
-          </span>
+          )}
+
           <button
             onClick={onRefresh}
             disabled={refreshing}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.06] disabled:opacity-60"
-            title="Refresh dashboard"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-zinc-500 transition-all hover:border-white/[0.1] hover:text-zinc-300 disabled:opacity-50"
+            title="Refresh"
           >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </button>
+
           <Link
             href="/notifications"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.06]"
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-zinc-500 transition-all hover:border-white/[0.1] hover:text-zinc-300"
           >
-            <Bell className="h-4 w-4" />
-            {notificationCount > 0 ? (
-              <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-black">
+            <Bell className="h-3.5 w-3.5" />
+            {notificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-black">
                 {notificationCount > 9 ? "9+" : notificationCount}
               </span>
-            ) : null}
+            )}
           </Link>
         </div>
       </div>
 
-      {lastRefreshed ? (
-        <div className="mt-4 text-xs text-zinc-500">
+      {lastRefreshed && (
+        <div className="mt-3 text-[10px] text-zinc-600">
           Updated {lastRefreshed.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
         </div>
-      ) : null}
-    </section>
+      )}
+    </header>
   );
 }
 
-function Banner({
-  kind,
-  text,
-  action,
-  onClick,
-  loading,
-}: {
-  kind: "warning" | "neutral";
-  text: string;
-  action?: string;
-  onClick?: () => void;
-  loading?: boolean;
-}) {
-  const tone =
-    kind === "warning"
-      ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
-      : "border-white/10 bg-white/[0.04] text-zinc-300";
-
-  return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3", tone)}>
-      <div className="flex items-center gap-3 text-sm">
-        <Zap className="h-4 w-4" />
-        <span>{text}</span>
-      </div>
-      {action && onClick ? (
-        <button
-          onClick={onClick}
-          disabled={loading}
-          className="rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-orange-400 disabled:opacity-60"
-        >
-          {loading ? "Running..." : action}
-        </button>
-      ) : null}
-    </div>
-  );
-}
+/* ── Main Dashboard ────────────────────────────────────────────────────── */
 
 export function DashboardClient(initialData: Props) {
   const [data, setData] = useState<DashboardData>(initialData);
@@ -792,14 +975,14 @@ export function DashboardClient(initialData: Props) {
         setLastRefreshed(new Date());
       }
     } catch {
-      // keep stale state on network issues
+      // keep stale state
     } finally {
       if (!silent) setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    const syncing = data.connections.some((conn) => conn.syncStatus === "SYNCING" || conn.syncStatus === "PENDING");
+    const syncing = data.connections.some((c) => c.syncStatus === "SYNCING" || c.syncStatus === "PENDING");
     const interval = syncing ? 10_000 : 60_000;
     const id = setInterval(() => fetchDashboard(true), interval);
     return () => clearInterval(id);
@@ -823,48 +1006,32 @@ export function DashboardClient(initialData: Props) {
     }
   };
 
-  const { user, profile, readiness, missions, connections, jobMatches, interviewCount, applicationCount, notificationCount, recentActivity } = data;
+  const {
+    user, profile, readiness, missions, connections,
+    jobMatches, interviewCount, applicationCount,
+    notificationCount, recentActivity,
+  } = data;
 
   const firstName = (user.name ?? "Student").split(" ")[0];
-  const syncingCount = connections.filter((conn) => conn.syncStatus === "SYNCING" || conn.syncStatus === "PENDING").length;
+  const syncingCount = connections.filter((c) => c.syncStatus === "SYNCING" || c.syncStatus === "PENDING").length;
   const allSynced = connections.length > 0 && syncingCount === 0;
   const needsAnalysis = allSynced && !readiness;
-  const activeMissions = missions.filter((mission) => mission.status === "IN_PROGRESS" || mission.status === "AVAILABLE").length;
-  const ghConn = connections.find((conn) => conn.platform === "GITHUB");
-  const lcConn = connections.find((conn) => conn.platform === "LEETCODE");
+  const activeMissions = missions.filter((m) => m.status === "IN_PROGRESS" || m.status === "AVAILABLE").length;
+  const ghConn = connections.find((c) => c.platform === "GITHUB");
+  const lcConn = connections.find((c) => c.platform === "LEETCODE");
 
   const heroStats = useMemo(
     () => [
-      {
-        label: "Missions",
-        value: activeMissions,
-        hint: "active now",
-        accent: "text-orange-300",
-      },
-      {
-        label: "Interviews",
-        value: interviewCount,
-        hint: "this week",
-        accent: "text-emerald-300",
-      },
-      {
-        label: "Jobs",
-        value: jobMatches.length,
-        hint: "top matches",
-        accent: "text-sky-300",
-      },
-      {
-        label: "Applications",
-        value: applicationCount,
-        hint: "submitted",
-        accent: "text-amber-300",
-      },
+      { label: "Missions", value: activeMissions, hint: "active now", icon: Target, gradient: "bg-[radial-gradient(ellipse_at_top_left,rgba(249,115,22,0.08),transparent_60%)]" },
+      { label: "Interviews", value: interviewCount, hint: "this week", icon: Mic, gradient: "bg-[radial-gradient(ellipse_at_top_left,rgba(34,197,94,0.08),transparent_60%)]" },
+      { label: "Jobs", value: jobMatches.length, hint: "top matches", icon: Sparkles, gradient: "bg-[radial-gradient(ellipse_at_top_left,rgba(56,189,248,0.08),transparent_60%)]" },
+      { label: "Applications", value: applicationCount, hint: "submitted", icon: ArrowUpRight, gradient: "bg-[radial-gradient(ellipse_at_top_left,rgba(234,179,8,0.08),transparent_60%)]" },
     ],
-    [activeMissions, applicationCount, interviewCount, jobMatches.length]
+    [activeMissions, applicationCount, interviewCount, jobMatches.length],
   );
 
   return (
-    <div className="min-h-full bg-[#090909] px-4 py-4 text-white sm:px-6 lg:px-8">
+    <div className="dashboard-root min-h-full bg-[#090909] px-4 py-4 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <Header
           firstName={firstName}
@@ -876,76 +1043,75 @@ export function DashboardClient(initialData: Props) {
           refreshing={refreshing}
         />
 
-        <div className="space-y-4">
-          {syncingCount > 0 ? (
-            <Banner kind="warning" text="Your connected profiles are syncing. Fresh dashboard data will appear shortly." />
-          ) : null}
-          {needsAnalysis ? (
+        {/* Banners */}
+        <div className="space-y-2">
+          {syncingCount > 0 && (
+            <Banner kind="warning" text="Your profiles are syncing. Fresh data will appear shortly." />
+          )}
+          {needsAnalysis && (
             <Banner
               kind="neutral"
-              text="Profiles synced — run gap analysis to unlock your readiness score and roadmap."
+              text="Profiles synced — run gap analysis to unlock your readiness score."
               action="Run Analysis"
               onClick={triggerAnalysis}
               loading={triggering}
             />
-          ) : null}
+          )}
         </div>
 
-        <div className="mt-6 flex flex-col xl:flex-row gap-4 items-start">
-          {/* Main Content Area */}
-          <div className="flex-1 w-full space-y-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {heroStats.map((stat) => (
-                <StatCard
-                  key={stat.label}
-                  label={stat.label}
-                  value={stat.value}
-                  hint={stat.hint}
-                  accent={stat.accent}
-                />
+        <div className="mt-6 grid gap-4 xl:grid-cols-12">
+          <ReadinessCard readiness={readiness} />
+          <div className="grid gap-4 sm:grid-cols-2 xl:col-span-8 2xl:grid-cols-4">
+            {heroStats.map((stat) => (
+              <StatCard
+                key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                hint={stat.hint}
+                accent={stat.accent}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-12">
+          <MissionsPanel missions={missions} />
+          <JobMatchesPanel jobMatches={jobMatches} />
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-3">
+          <GitHubCard conn={ghConn} />
+          <LeetCodeCard conn={lcConn} />
+          <StreakCard streakDays={profile.streakDays} />
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-12">
+          <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} />
+          <RecentActivityPanel activities={recentActivity} />
+        </div>
+
+        {profile.dreamCompanies.length ? (
+          <section className={cn(cardClass, "mt-6")}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className={sectionEyebrow}>Targets</div>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream company watchlist</h3>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
+                <Trophy className="h-4 w-4 text-orange-300" />
+                {profile.segment.replaceAll("_", " ")}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {profile.dreamCompanies.map((company) => (
+                <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
+                  {company}
+                </span>
               ))}
             </div>
-
-            <MissionsPanel missions={missions} />
-            
-            <div className="grid gap-4 md:grid-cols-2">
-              <JobMatchesPanel jobMatches={jobMatches} />
-              <RecentActivityPanel activities={recentActivity} />
-            </div>
-
-            {profile.dreamCompanies.length > 0 && (
-              <section className={cn(cardClass)}>
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <div className={sectionEyebrow}>Targets</div>
-                    <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream company watchlist</h3>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
-                    <Trophy className="h-4 w-4 text-orange-300" />
-                    {profile.segment.replaceAll("_", " ")}
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {profile.dreamCompanies.map((company) => (
-                    <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
-                      {company}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* Right Sidebar Area */}
-          <div className="w-full xl:w-[340px] shrink-0 space-y-4">
-            <ReadinessCard readiness={readiness} />
-            <StreakCard streakDays={profile.streakDays} />
-            <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} />
-            <GitHubCard conn={ghConn} />
-            <LeetCodeCard conn={lcConn} />
-          </div>
-        </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );
