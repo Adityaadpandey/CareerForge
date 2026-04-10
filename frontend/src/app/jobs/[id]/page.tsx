@@ -390,7 +390,7 @@ export default function JobDetailPage() {
     return (
       <div className="flex min-h-screen bg-[#0a0a0a]">
         <Sidebar />
-        <main className="flex-1 p-6 md:p-8 max-w-4xl space-y-8">
+        <main className="flex-1 p-6 md:p-8 max-w-4xl mx-auto space-y-8">
           <Skeleton className="h-4 w-28" />
           <div className="space-y-3">
             <Skeleton className="h-8 w-72" />
@@ -417,7 +417,7 @@ export default function JobDetailPage() {
   return (
     <div className="flex min-h-screen bg-[#0a0a0a]">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-8 max-w-4xl space-y-8">
+      <main className="flex-1 p-6 md:p-8 max-w-4xl mx-auto space-y-8">
 
         {/* ── Back ─────────────────────────────────────────── */}
         <Link
