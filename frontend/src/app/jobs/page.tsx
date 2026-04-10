@@ -284,7 +284,7 @@ export default function JobsPage() {
   return (
     <div className="flex min-h-screen bg-[#0a0a0a]">
       <Sidebar />
-      <main className="flex-1 min-w-0 px-6 py-8 md:px-10 md:py-10 max-w-4xl">
+      <main className="flex-1 min-w-0 px-6 py-8 md:px-10 md:py-10 max-w-4xl mx-auto">
 
         {/* Header */}
         <div className="mb-8">
