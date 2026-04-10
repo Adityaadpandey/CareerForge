@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { aiClient } from "@/lib/ai-client";
+import type { CvData } from "@/components/pdf/types";
 
 export async function POST(
   _req: NextRequest,
@@ -20,12 +21,12 @@ export async function POST(
   if (!profile)
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const aiRes = await aiClient.post("/jobs/generate-cv", {
+  const aiRes = await aiClient.post<CvData>("/jobs/generate-cv", {
     student_profile_id: profile.id,
     job_id: jobId,
   });
 
-  const { cv_markdown } = aiRes.data;
+  const cvData = aiRes.data;
 
   await prisma.application.upsert({
     where: { studentProfileId_jobId: { studentProfileId: profile.id, jobId } },
@@ -33,10 +34,10 @@ export async function POST(
       studentProfileId: profile.id,
       jobId,
       matchScore: 0,
-      cvGenerated: cv_markdown,
+      cvGenerated: JSON.stringify(cvData),
     },
-    update: { cvGenerated: cv_markdown },
+    update: { cvGenerated: JSON.stringify(cvData) },
   });
 
-  return NextResponse.json({ cv_markdown });
+  return NextResponse.json({ cv: cvData });
 }

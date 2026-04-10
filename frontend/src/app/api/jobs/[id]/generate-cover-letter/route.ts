@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { aiClient } from "@/lib/ai-client";
+import type { CoverLetterData } from "@/components/pdf/types";
 
 export async function POST(
   _req: NextRequest,
@@ -20,12 +21,12 @@ export async function POST(
   if (!profile)
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const aiRes = await aiClient.post("/jobs/generate-cover-letter", {
+  const aiRes = await aiClient.post<CoverLetterData>("/jobs/generate-cover-letter", {
     student_profile_id: profile.id,
     job_id: jobId,
   });
 
-  const { cover_letter } = aiRes.data;
+  const clData = aiRes.data;
 
   await prisma.application.upsert({
     where: { studentProfileId_jobId: { studentProfileId: profile.id, jobId } },
@@ -33,10 +34,10 @@ export async function POST(
       studentProfileId: profile.id,
       jobId,
       matchScore: 0,
-      coverLetter: cover_letter,
+      coverLetter: JSON.stringify(clData),
     },
-    update: { coverLetter: cover_letter },
+    update: { coverLetter: JSON.stringify(clData) },
   });
 
-  return NextResponse.json({ cover_letter });
+  return NextResponse.json({ cover_letter: clData });
 }
