@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { CallControls, SpeakerLayout, ParticipantsAudio } from "@stream-io/video-react-sdk";
+import {
+  CallControls,
+  SpeakerLayout,
+  ParticipantsAudio,
+  useCallStateHooks,
+} from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import { Zap } from "lucide-react";
 
@@ -29,6 +34,13 @@ export type EmotionSample = {
 interface Props {
   onLeave: (emotionSamples: EmotionSample[]) => void;
   interviewType: string;
+}
+
+// Renders hidden <audio> elements for every remote participant (including AI agent)
+function RemoteAudio() {
+  const { useParticipants } = useCallStateHooks();
+  const participants = useParticipants();
+  return <ParticipantsAudio participants={participants} />;
 }
 
 export const CallActive = ({ onLeave, interviewType }: Props) => {
@@ -127,6 +139,9 @@ export const CallActive = ({ onLeave, interviewType }: Props) => {
           <span className="text-xs text-zinc-500 font-mono">REC</span>
         </div>
       </div>
+
+      {/* Plays audio from ALL remote participants including the AI agent */}
+      <RemoteAudio />
 
       {/* Video area */}
       <div className="flex-1 overflow-hidden">
