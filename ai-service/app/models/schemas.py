@@ -69,3 +69,24 @@ class InterviewGenerateDebriefRequest(BaseModel):
     transcript_url: str
     emotion_data: Optional[dict] = None
     communication_data: Optional[dict] = None
+
+
+class JobsGenerateCvRequest(BaseModel):
+    student_profile_id: str
+    job_id: str
+
+
+class JobsGenerateCoverLetterRequest(BaseModel):
+    student_profile_id: str
+    job_id: str
+
+
+class JobsDescribeRequest(BaseModel):
+    html: str
+    job_id: str
+
+
+class JobsSkillAnalysisRequest(BaseModel):
+    requirement_tags: list[str]
+    platform_data: list[dict]
+    gap_analysis: Optional[dict] = None
