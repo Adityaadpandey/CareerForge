@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { CallControls, SpeakerLayout } from "@stream-io/video-react-sdk";
+import { CallControls, SpeakerLayout, ParticipantsAudio } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import { Zap } from "lucide-react";
 
@@ -48,10 +48,10 @@ export const CallActive = ({ onLeave, interviewType }: Props) => {
 
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(
-            "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"
+            "https://raw.githack.com/justadudewhohacks/face-api.js/master/weights"
           ),
           faceapi.nets.faceExpressionNet.loadFromUri(
-            "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"
+            "https://raw.githack.com/justadudewhohacks/face-api.js/master/weights"
           ),
         ]);
 

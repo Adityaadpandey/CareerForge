@@ -215,6 +215,10 @@ model InterviewSession {
   emotionData       Json?
   communicationData Json?
 
+  // Hume AI analysis
+  humeJobId    String?
+  humeAnalysis Json?
+
   studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
   mission        Mission?       @relation(fields: [missionId], references: [id])
 }

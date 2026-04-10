@@ -86,3 +86,20 @@ export async function GET() {
 
   return NextResponse.json(sessions);
 }
+
+export async function DELETE() {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId: session.user.id },
+    select: { id: true },
+  });
+  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+  const deleted = await prisma.interviewSession.deleteMany({
+    where: { studentProfileId: profile.id },
+  });
+
+  return NextResponse.json({ deleted: deleted.count });
+}

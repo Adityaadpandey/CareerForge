@@ -14,7 +14,7 @@ import {
   Calendar,
   Hourglass,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type InterviewSession = {
   id: string;
@@ -41,6 +41,12 @@ export default function InterviewPage() {
   const router = useRouter();
   const [scheduleType, setScheduleType] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState("");
+  const [nowTs, setNowTs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const { data: sessions, isLoading, refetch } = useQuery<InterviewSession[]>({
     queryKey: ["interviews"],
@@ -63,6 +69,19 @@ export default function InterviewPage() {
     onError: () => toast.error("Failed to create interview"),
   });
 
+  const clearMutation = useMutation({
+    mutationFn: () => axios.delete<{ deleted: number }>("/api/interviews").then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(
+        data.deleted > 0
+          ? `Removed ${data.deleted} interview${data.deleted === 1 ? "" : "s"}`
+          : "No interviews to remove"
+      );
+      refetch();
+    },
+    onError: () => toast.error("Failed to clear interviews"),
+  });
+
   const upcoming = sessions?.filter((s) => s.status === "UPCOMING") ?? [];
   const inProgress = sessions?.filter((s) => s.status === "IN_PROGRESS") ?? [];
   const processing = sessions?.filter((s) => s.status === "PROCESSING") ?? [];
@@ -73,8 +92,19 @@ export default function InterviewPage() {
       <Sidebar />
       <main className="flex-1 p-6 md:p-8 max-w-4xl">
         <div className="mb-8">
-          <p className="text-xs font-mono tracking-widest text-zinc-500 uppercase mb-1">Practice</p>
-          <h1 className="text-2xl text-white font-light">Mock Interviews</h1>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-mono tracking-widest text-zinc-500 uppercase mb-1">Practice</p>
+              <h1 className="text-2xl text-white font-light">Mock Interviews</h1>
+            </div>
+            <button
+              onClick={() => clearMutation.mutate()}
+              disabled={clearMutation.isPending || isLoading || !sessions?.length}
+              className="px-4 py-2 border border-red-500/20 bg-red-500/5 text-red-300 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors"
+            >
+              {clearMutation.isPending ? "Clearing..." : "Clear all interviews"}
+            </button>
+          </div>
         </div>
 
         {/* Start a session */}
@@ -189,7 +219,7 @@ export default function InterviewPage() {
                       <span className="text-xs text-zinc-500 font-mono">
                         {s.scheduledAt
                           ? `in ${Math.ceil(
-                              (new Date(s.scheduledAt).getTime() - Date.now()) / 60000
+                              (new Date(s.scheduledAt).getTime() - nowTs) / 60000
                             )}m`
                           : "Upcoming"}
                       </span>

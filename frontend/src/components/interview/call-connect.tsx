@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Call,
   CallingState,
@@ -27,40 +27,75 @@ export const CallConnect = ({
   userName,
   userImage,
 }: Props) => {
-  const generateToken = useCallback(async () => {
-    const res = await fetch("/api/interviews/token");
-    const data = await res.json() as { token: string };
-    return data.token;
-  }, []);
-
   const [client, setClient] = useState<StreamVideoClient>();
-  useEffect(() => {
-    const _client = new StreamVideoClient({
-      apiKey: process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!,
-      user: { id: userId, name: userName, image: userImage },
-      tokenProvider: generateToken,
-    });
-    setClient(_client);
-    return () => {
-      _client.disconnectUser();
-      setClient(undefined);
-    };
-  }, [generateToken, userId, userName, userImage]);
-
   const [call, setCall] = useState<Call>();
+  const [error, setError] = useState<string>();
+
   useEffect(() => {
-    if (!client) return;
-    const _call = client.call("default", interviewId);
-    _call.camera.disable();
-    _call.microphone.disable();
-    setCall(_call);
-    return () => {
-      if (_call.state.callingState !== CallingState.LEFT) {
-        _call.leave();
+    let cancelled = false;
+    let _client: StreamVideoClient | undefined;
+
+    const init = async () => {
+      try {
+        // Fetch token first so client has it immediately on connect
+        const res = await fetch("/api/interviews/token");
+        const { token } = (await res.json()) as { token: string };
+        if (cancelled) return;
+
+        _client = new StreamVideoClient({
+          apiKey: process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!,
+          user: { id: userId, name: userName, image: userImage },
+          token,
+        });
+
+        const _call = _client.call("default", interviewId);
+        _call.camera.disable();
+        _call.microphone.disable();
+
+        if (cancelled) {
+          await _client.disconnectUser();
+          return;
+        }
+
+        setClient(_client);
+        setCall(_call);
+      } catch (err) {
+        if (!cancelled) {
+          setError("Failed to connect. Please refresh and try again.");
+          console.error("[CallConnect] init failed:", err);
+        }
       }
-      setCall(undefined);
     };
-  }, [client, interviewId]);
+
+    init();
+
+    return () => {
+      cancelled = true;
+      void (async () => {
+        if (_client) {
+          try {
+            const callState = _client.call("default", interviewId).state.callingState;
+            if (callState !== CallingState.LEFT) {
+              await _client.call("default", interviewId).leave().catch(() => {});
+            }
+          } catch {
+            // ignore
+          }
+          await _client.disconnectUser().catch(() => {});
+        }
+        setClient(undefined);
+        setCall(undefined);
+      })();
+    };
+  }, [userId, userName, userImage, interviewId]);
+
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0a0a0a]">
+        <p className="text-sm text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   if (!client || !call) {
     return (
