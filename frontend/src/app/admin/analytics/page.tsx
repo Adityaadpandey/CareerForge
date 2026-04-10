@@ -19,12 +19,7 @@ type Analytics = {
   totalStudents: number;
 };
 
-const PILLAR_COLORS: Record<string, string> = {
-  DSA: "#8b5cf6",
-  Dev: "#3b82f6",
-  Communication: "#f59e0b",
-  Consistency: "#22c55e",
-};
+
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (

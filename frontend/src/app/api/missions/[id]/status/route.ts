@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { enqueueNotify } from "@/lib/queue";
+import { streamVideo } from "@/lib/stream-video";
 
 export async function PATCH(
   req: NextRequest,
@@ -39,12 +40,55 @@ export async function PATCH(
       },
     });
 
+    // Keep mission-completion interview flow aligned with /api/interviews.
+    let interviewActionUrl = `/interview/${session_interview.id}`;
+    try {
+      const call = streamVideo.video.call("default", session_interview.id);
+      await call.create({
+        data: {
+          created_by_id: session.user.id,
+          custom: {
+            interviewId: session_interview.id,
+            interviewType: "TECHNICAL",
+          },
+          settings_override: {
+            transcription: {
+              language: "en",
+              mode: "auto-on",
+              closed_caption_mode: "auto-on",
+            },
+            recording: {
+              mode: "auto-on",
+              quality: "1080p",
+            },
+          },
+        },
+      });
+
+      await streamVideo.upsertUsers([
+        {
+          id: "ai-interviewer",
+          name: "AI Interviewer",
+          role: "user",
+        },
+      ]);
+
+      await prisma.interviewSession.update({
+        where: { id: session_interview.id },
+        data: { streamCallId: session_interview.id },
+      });
+
+      interviewActionUrl = `/interview/${session_interview.id}/call`;
+    } catch (err) {
+      console.error("[missions/status] Stream setup failed for mission interview:", err);
+    }
+
     await enqueueNotify({
       userId: session.user.id,
       type: "INTERVIEW_READY",
       title: `Interview ready: ${mission.title}`,
       body: "You've completed a mission. Start your mock interview now.",
-      actionUrl: `/interview/${session_interview.id}`,
+      actionUrl: interviewActionUrl,
     });
 
     await prisma.notification.create({
@@ -53,7 +97,7 @@ export async function PATCH(
         type: "INTERVIEW_READY",
         title: `Interview ready: ${mission.title}`,
         body: "You've completed a mission. Start your mock interview now.",
-        actionUrl: `/interview/${session_interview.id}`,
+        actionUrl: interviewActionUrl,
       },
     });
 

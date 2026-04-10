@@ -224,6 +224,7 @@ export default function AdminDrivesPage() {
 function DriveCard({ drive, onDelete }: { drive: Drive; onDelete: () => void }) {
   const date = new Date(drive.driveDate);
   const isUpcoming = date >= new Date();
+  // eslint-disable-next-line react-hooks/purity
   const daysLeft = Math.ceil((date.getTime() - Date.now()) / 86400000);
   type Eli = { minCGPA?: number; minReadiness?: number; branches?: string[] };
   const eli = drive.eligibility as Eli;

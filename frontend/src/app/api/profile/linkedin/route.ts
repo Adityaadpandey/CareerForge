@@ -88,9 +88,9 @@ export async function POST(req: NextRequest) {
       linkedin_url: linkedinUrl,
     });
     return NextResponse.json({ status: "done" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: "LinkedIn ingestion failed", detail: err?.message },
+      { error: "LinkedIn ingestion failed", detail: err instanceof Error ? err.message : String(err) },
       { status: 502 }
     );
   }

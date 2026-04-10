@@ -42,6 +42,7 @@ export default async function DashboardPage() {
   });
 
   /* ── counts ─────────────────────────────────────────────────────────────── */
+  // eslint-disable-next-line react-hooks/purity
   const weekAgo = new Date(Date.now() - 7 * 86_400_000);
   const [interviewCount, applicationCount, notificationCount] = await Promise.all([
     prisma.interviewSession.count({

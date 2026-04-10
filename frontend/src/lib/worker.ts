@@ -146,7 +146,7 @@ function startIngestionWorker() {
         let result: unknown;
         switch (job.data.type) {
           case "GITHUB":
-            const syncType = (job.data as any).syncType ?? "SHALLOW";
+            const syncType = (job.data as { syncType?: string }).syncType ?? "SHALLOW";
             // GitHub analysis can take 5-10 min for large profiles (80+ repos)
             result = await callAI("/ingest/github", {
               student_profile_id: sid,

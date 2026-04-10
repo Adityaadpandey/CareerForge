@@ -161,8 +161,8 @@ function MissionMentorChat({ missionId }: { missionId: string }) {
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    code: ({ inline, className, children, ...props }: any) => {
-                      const match = /language-(\w+)/.exec(className || "");
+                    code: ({ inline, children, ...props }: unknown) => {
+                      // const match = /language-(\w+)/.exec(className || "");
                       return !inline ? (
                         <div className="my-2 p-2 rounded bg-zinc-950 border border-zinc-800 overflow-x-auto text-xs font-mono text-zinc-300">
                           <code {...props}>{children}</code>
@@ -258,7 +258,7 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
         <div className="absolute top-4 bottom-12 left-8 sm:left-12 w-[2px] bg-zinc-800/60 rounded-full" />
 
         <div className="flex flex-col gap-10">
-          {sortedMissions.map((mission, idx) => {
+          {sortedMissions.map((mission) => {
             const TypeIcon = TYPE_ICON[mission.type] ?? Code2;
             const style = STATUS_STYLE[mission.status] ?? STATUS_STYLE.LOCKED;
 
@@ -348,8 +348,8 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
       {/* Detail Drawer (Sheet) */}
       <Sheet open={!!selectedMission} onOpenChange={(open) => !open && setSelectedMission(null)}>
         {selectedMission && (
-          <SheetContent className="bg-zinc-950/95 backdrop-blur-xl border-l border-zinc-800/50 shadow-[-20px_0_50px_-20px_rgba(0,0,0,0.8)] w-full sm:w-[600px] lg:w-[800px] xl:w-[960px] sm:max-w-none overflow-y-auto p-0">
-            <div className="sticky top-0 bg-zinc-950/70 backdrop-blur-2xl z-20 border-b border-zinc-800/40 p-8 shadow-sm">
+          <SheetContent className="flex flex-col bg-zinc-950/95 backdrop-blur-xl border-l border-zinc-800/50 shadow-[-20px_0_50px_-20px_rgba(0,0,0,0.8)] w-full sm:w-[700px] lg:w-[900px] xl:w-[1100px] 2xl:w-[1200px] sm:max-w-none p-0 overflow-hidden">
+            <div className="shrink-0 bg-zinc-950/70 backdrop-blur-2xl z-20 border-b border-zinc-800/40 p-6 sm:p-8 shadow-sm">
               <SheetHeader>
                 <div className="flex flex-wrap items-center gap-3 mb-4">
                   <span className="px-2.5 py-1 rounded text-[10px] font-mono tracking-widest uppercase bg-zinc-900 shadow-inner text-zinc-400 border border-zinc-800/50">
@@ -365,7 +365,7 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
               </SheetHeader>
             </div>
             
-            <div className="p-8 pb-32">
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8">
               <div className="prose prose-invert max-w-none text-zinc-300 leading-relaxed tracking-wide">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -373,7 +373,7 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
                     h3: ({...props}) => <h3 className="text-xl font-medium text-zinc-100 mt-10 mb-4 tracking-tight" {...props} />,
                     ul: ({...props}) => <ul className="list-disc pl-6 space-y-2 mt-4 mb-6 text-zinc-300 marker:text-zinc-600" {...props} />,
                     li: ({...props}) => <li className="pl-2 leading-loose" {...props} />,
-                    code: ({className, children, inline, ...props}: any) => {
+                    code: ({className, children, inline, ...props}: unknown) => {
                       const match = /language-(\w+)/.exec(className || "");
                       const isInline = inline || (!match && !String(children).includes("\n"));
                       return isInline ? (
@@ -438,11 +438,12 @@ export function RoadmapClient({ missions }: { missions: Mission[] }) {
               
               <MissionMentorChat missionId={selectedMission.id} />
               
+              <div className="h-6" />
             </div>
             
-            {/* Sticky Action Footer */}
-            <div className="fixed bottom-0 w-full sm:max-w-xl bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pt-12 pb-6 px-6 pointer-events-none z-20">
-              <div className="pointer-events-auto shadow-2xl">
+            {/* Context-Aware Action Footer */}
+            <div className="shrink-0 border-t border-zinc-800/50 bg-zinc-950/80 p-6 backdrop-blur-xl z-20">
+              <div className="w-full max-w-xl mx-auto shadow-2xl">
                 {selectedMission.status === "AVAILABLE" && (
                   <button
                     onClick={async () => {

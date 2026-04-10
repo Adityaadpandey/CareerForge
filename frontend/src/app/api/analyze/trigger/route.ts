@@ -37,9 +37,9 @@ export async function POST() {
     await aiClient.post("/analyze/gap", { student_profile_id: profile.id });
     await aiClient.post("/analyze/roadmap", { student_profile_id: profile.id });
     return NextResponse.json({ status: "triggered", profileId: profile.id });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: "AI service error", detail: err?.message },
+      { error: "AI service error", detail: err instanceof Error ? err.message : String(err) },
       { status: 502 }
     );
   }

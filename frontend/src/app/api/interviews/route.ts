@@ -81,13 +81,50 @@ export async function GET() {
   });
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const sessions = await prisma.interviewSession.findMany({
-    where: { studentProfileId: profile.id },
-    orderBy: { createdAt: "desc" },
-    include: { mission: { select: { title: true } } },
-  });
+  try {
+    // Use raw SQL with enum casts to text to avoid runtime crashes when generated
+    // Prisma enums lag behind database enum values.
+    const rows = await prisma.$queryRaw<Array<{
+      id: string;
+      interviewType: string;
+      status: string;
+      overallScore: number | null;
+      createdAt: Date;
+      completedAt: Date | null;
+      scheduledAt: Date | null;
+      missionTitle: string | null;
+    }>>`
+      SELECT
+        i.id,
+        i."interviewType"::text AS "interviewType",
+        i.status::text AS status,
+        i."overallScore",
+        i."createdAt",
+        i."completedAt",
+        i."scheduledAt",
+        m.title AS "missionTitle"
+      FROM "InterviewSession" i
+      LEFT JOIN "Mission" m ON m.id = i."missionId"
+      WHERE i."studentProfileId" = ${profile.id}
+      ORDER BY i."createdAt" DESC
+    `;
 
-  return NextResponse.json(sessions);
+    const sessions = rows.map((r) => ({
+      id: r.id,
+      interviewType: r.interviewType,
+      status: r.status,
+      overallScore: r.overallScore,
+      createdAt: r.createdAt,
+      completedAt: r.completedAt,
+      scheduledAt: r.scheduledAt,
+      mission: r.missionTitle ? { title: r.missionTitle } : null,
+    }));
+
+    return NextResponse.json(sessions);
+  } catch (err) {
+    console.error("[interviews] GET failed:", err);
+    return NextResponse.json({ error: "Failed to load interviews" }, { status: 500 });
+  }
 }
 
 export async function DELETE() {

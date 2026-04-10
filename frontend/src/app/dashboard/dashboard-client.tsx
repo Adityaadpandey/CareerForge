@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -112,17 +112,12 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-const shellClass =
-  "rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(19,19,20,0.96),rgba(11,11,12,0.98))] shadow-[0_18px_70px_rgba(0,0,0,0.32)]";
+
 const cardClass =
   "rounded-[1.6rem] border border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.92),rgba(15,15,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
 const sectionEyebrow = "text-[11px] uppercase tracking-[0.24em] text-zinc-500 font-mono";
 
-const TYPE_STYLES: Record<string, string> = {
-  BUILD: "border-orange-500/20 bg-orange-500/10 text-orange-300",
-  SOLVE: "border-sky-500/20 bg-sky-500/10 text-sky-300",
-  COMMUNICATE: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-};
+
 
 const TOPIC_META: Record<string, { color: string; score: number }> = {
   "Binary Trees": { color: "#ef4444", score: 85 },
@@ -232,7 +227,7 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
     : [];
 
   return (
-    <section className={cn(cardClass, "lg:col-span-4")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Readiness</div>
@@ -382,7 +377,7 @@ function MissionItem({ mission }: { mission: Mission }) {
 
 function MissionsPanel({ missions, className }: { missions: Mission[]; className?: string }) {
   return (
-    <section className={cn(cardClass, "xl:col-span-7")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Roadmap</div>
@@ -411,7 +406,7 @@ function MissionsPanel({ missions, className }: { missions: Mission[]; className
 
 function JobMatchesPanel({ jobMatches, className }: { jobMatches: JobMatch[]; className?: string }) {
   return (
-    <section className={cn(cardClass, "xl:col-span-5")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Jobs</div>
@@ -509,7 +504,7 @@ function GitHubCard({ conn, className }: { conn: Connection | undefined; classNa
   const commits = gh?.repositories?.top_projects?.reduce((s, p) => s + (p.total_commits ?? 0), 0) ?? 0;
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>GitHub</div>
@@ -568,7 +563,7 @@ function LeetCodeCard({ conn, className }: { conn: Connection | undefined; class
   const syncing = conn?.syncStatus === "SYNCING" || conn?.syncStatus === "PENDING";
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>LeetCode</div>
@@ -637,7 +632,7 @@ function LeetCodeCard({ conn, className }: { conn: Connection | undefined; class
 
 /* ── Streak Card ───────────────────────────────────────────────────────── */
 
-function StreakCard({ streakDays }: { streakDays: number }) {
+function StreakCard({ streakDays, className }: { streakDays: number; className?: string }) {
   const squares = Array.from({ length: 28 }, (_, index) => {
     const fromEnd = 27 - index;
     if (fromEnd < streakDays) return "bg-orange-400";
@@ -646,7 +641,7 @@ function StreakCard({ streakDays }: { streakDays: number }) {
   });
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className={sectionEyebrow}>Activity</div>
@@ -679,11 +674,11 @@ function StreakCard({ streakDays }: { streakDays: number }) {
   );
 }
 
-function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
+function WeakTopicsPanel({ weakTopics, className }: { weakTopics: string[]; className?: string }) {
   const topics = (weakTopics.length ? weakTopics : Object.keys(TOPIC_META)).slice(0, 6);
 
   return (
-    <section className={cn(cardClass, "xl:col-span-5")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Focus</div>
@@ -708,13 +703,13 @@ function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
   );
 }
 
-function RecentActivityPanel({ activities }: { activities: ActivityItem[] }) {
+function RecentActivityPanel({ activities, className }: { activities: ActivityItem[]; className?: string }) {
   const items = activities.length
     ? activities
     : [{ dot: "#525252", html: "Your activity will appear here as you complete missions and interviews", time: "" }];
 
   return (
-    <section className={cn(cardClass, "xl:col-span-7")}>
+    <section className={cn(cardClass, className)}>
       <div>
         <div className={sectionEyebrow}>Feed</div>
         <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Recent activity</h3>
@@ -809,7 +804,6 @@ function Banner({
 function Header({
   firstName,
   targetRole,
-  streakDays,
   notificationCount,
   lastRefreshed,
   onRefresh,
@@ -817,7 +811,6 @@ function Header({
 }: {
   firstName: string;
   targetRole: string | null;
-  streakDays: number;
   notificationCount: number;
   lastRefreshed: Date | null;
   onRefresh: () => void;
@@ -957,7 +950,6 @@ export function DashboardClient(initialData: Props) {
         <Header
           firstName={firstName}
           targetRole={profile.targetRole}
-          streakDays={profile.streakDays}
           notificationCount={notificationCount}
           lastRefreshed={lastRefreshed}
           onRefresh={() => fetchDashboard(false)}
@@ -980,60 +972,63 @@ export function DashboardClient(initialData: Props) {
           )}
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <ReadinessCard readiness={readiness} />
-          <div className="grid gap-4 sm:grid-cols-2 xl:col-span-8 2xl:grid-cols-4">
-            {heroStats.map((stat) => (
-              <StatCard
-                key={stat.label}
-                label={stat.label}
-                value={stat.value}
-                hint={stat.hint}
-                icon={stat.icon}
-                gradient={stat.gradient}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <MissionsPanel missions={missions} />
-          <JobMatchesPanel jobMatches={jobMatches} />
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-3">
-          <GitHubCard conn={ghConn} />
-          <LeetCodeCard conn={lcConn} />
-          <StreakCard streakDays={profile.streakDays} />
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} />
-          <RecentActivityPanel activities={recentActivity} />
-        </div>
-
-        {profile.dreamCompanies.length ? (
-          <section className={cn(cardClass, "mt-6")}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className={sectionEyebrow}>Targets</div>
-                <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream company watchlist</h3>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
-                <Trophy className="h-4 w-4 text-orange-300" />
-                {profile.segment.replaceAll("_", " ")}
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {profile.dreamCompanies.map((company) => (
-                <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-                  {company}
-                </span>
+        <div className="mt-6 grid gap-6 xl:grid-cols-12 xl:items-start">
+          {/* Main Layout Area */}
+          <div className="flex flex-col gap-6 xl:col-span-8">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {heroStats.map((stat) => (
+                <StatCard
+                  key={stat.label}
+                  label={stat.label}
+                  value={stat.value}
+                  hint={stat.hint}
+                  icon={stat.icon}
+                  gradient={stat.gradient}
+                />
               ))}
             </div>
-          </section>
-        ) : null}
+
+            <MissionsPanel missions={missions} className="w-full" />
+            <JobMatchesPanel jobMatches={jobMatches} className="w-full" />
+            <RecentActivityPanel activities={recentActivity} className="w-full" />
+          </div>
+
+          {/* Right Sidebar */}
+          <aside className="flex flex-col gap-6 xl:col-span-4">
+            <ReadinessCard readiness={readiness} className="w-full" />
+            
+            <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} className="w-full" />
+            
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <StreakCard streakDays={profile.streakDays} className="w-full" />
+              <GitHubCard conn={ghConn} className="w-full" />
+              <LeetCodeCard conn={lcConn} className="w-full" />
+            </div>
+
+            {profile.dreamCompanies.length ? (
+              <section className={cn(cardClass, "mt-2")}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className={sectionEyebrow}>Targets</div>
+                    <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream companies</h3>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
+                    <Trophy className="h-4 w-4 text-orange-300" />
+                    {profile.segment.replaceAll("_", " ")}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {profile.dreamCompanies.map((company) => (
+                    <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
+                      {company}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </aside>
+        </div>
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ export default function FeatureCard({ icon, title, description, index }: Feature
 
   useEffect(() => {
     if (cardRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCardSize({
         width: cardRef.current.offsetWidth || 1,
         height: cardRef.current.offsetHeight || 1,

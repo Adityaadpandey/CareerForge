@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict eVtNc9UB9nntKr3xG7AlcTuC4fVrQ2jKudMbo3jHBqvp5apBd3tC4Q4WzaScPfL
+\restrict bl3FCmpgXP8sjTffN5gSUj11kyOXYZMPR7bN72athUIUnUnP6fzhBQLLpsM48CI
 
 -- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 17.7 (Homebrew)
@@ -59,7 +59,9 @@ ALTER TYPE public."ApplicationStatus" OWNER TO postgres;
 CREATE TYPE public."InterviewStatus" AS ENUM (
     'IN_PROGRESS',
     'COMPLETED',
-    'ABANDONED'
+    'ABANDONED',
+    'UPCOMING',
+    'PROCESSING'
 );
 
 
@@ -73,7 +75,8 @@ CREATE TYPE public."InterviewType" AS ENUM (
     'TECHNICAL',
     'SYSTEM_DESIGN',
     'BEHAVIORAL',
-    'MIXED'
+    'MIXED',
+    'HR'
 );
 
 
@@ -302,7 +305,15 @@ CREATE TABLE public."InterviewSession" (
     "sentimentScores" jsonb,
     "overallScore" double precision,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "completedAt" timestamp(3) without time zone
+    "completedAt" timestamp(3) without time zone,
+    "communicationData" jsonb,
+    "emotionData" jsonb,
+    "humeAnalysis" jsonb,
+    "humeJobId" text,
+    "recordingUrl" text,
+    "scheduledAt" timestamp(3) without time zone,
+    "streamCallId" text,
+    "transcriptUrl" text
 );
 
 
@@ -575,9 +586,8 @@ COPY public."CompanyDrive" (id, "universityId", "companyName", roles, "driveDate
 -- Data for Name: InterviewSession; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public."InterviewSession" (id, "studentProfileId", "missionId", "interviewType", status, transcript, debrief, "sentimentScores", "overallScore", "createdAt", "completedAt") FROM stdin;
-cmnrxnmnw000rvfxpgkijoqm0	cmnrwz3k0000jvfxpzyauv8cd	ea8f293d-a897-4eb0-8570-b4c1909978d3	TECHNICAL	IN_PROGRESS	[]	\N	\N	\N	2026-04-09 20:32:00.38	\N
-cmns5in8t0000wwxpjiphsmsd	cmnrwz3k0000jvfxpzyauv8cd	0fdb7806-f0ec-44af-add5-5db618fed808	TECHNICAL	IN_PROGRESS	[]	\N	\N	\N	2026-04-10 00:12:04.781	\N
+COPY public."InterviewSession" (id, "studentProfileId", "missionId", "interviewType", status, transcript, debrief, "sentimentScores", "overallScore", "createdAt", "completedAt", "communicationData", "emotionData", "humeAnalysis", "humeJobId", "recordingUrl", "scheduledAt", "streamCallId", "transcriptUrl") FROM stdin;
+cmnsg12z90002wdxpi5anmknf	cmnrwz3k0000jvfxpzyauv8cd	0fdb7806-f0ec-44af-add5-5db618fed808	TECHNICAL	IN_PROGRESS	[]	\N	\N	\N	2026-04-10 05:06:21.141	\N	\N	{"samples": [{"timestamp": 1775797595266, "expressions": {"sad": 0.00004853831705986522, "angry": 0.0003632869338616729, "happy": 0.00013818182924296707, "fearful": 0.000013532191587728448, "neutral": 0.9993771314620972, "disgusted": 0.0000003802133790031803, "surprised": 0.00005895269350730814}}], "averages": {"sad": 0, "angry": 0, "happy": 0, "fearful": 0, "neutral": 0.999, "disgusted": 0, "surprised": 0}, "sampleCount": 1}	\N	\N	\N	\N	cmnsg12z90002wdxpi5anmknf	\N
 \.
 
 
@@ -686,11 +696,11 @@ a541a8d5-d619-490f-be21-09da4ae361b3	hTrbMjScoqRk81Y7AAAAAA==	Remote Java Backen
 --
 
 COPY public."Mission" (id, "studentProfileId", type, title, description, status, resources, "estimatedHours", deadline, "orderIndex", "completedAt", "prerequisiteIds") FROM stdin;
-ea8f293d-a897-4eb0-8570-b4c1909978d3	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Build a REST API with CRUD, validation, and pagination	Create a small backend service for a simple domain such as tasks, books, or expenses. Implement REST endpoints for create, read, update, and delete, plus input validation, pagination, and consistent error responses. This proves you can design clean APIs and ship a working backend from end to end.	COMPLETED	[{"url": "https://www.freecodecamp.org/news/build-a-restful-api-using-node-express-and-mongodb/", "type": "article", "title": "Build a RESTful API with Node.js, Express, and MongoDB"}, {"url": "https://spring.io/guides/tutorials/rest/", "type": "course", "title": "Building REST services with Spring"}, {"url": "https://fastapi.tiangolo.com/tutorial/sql-databases/", "type": "docs", "title": "SQL (Relational) Databases with FastAPI"}]	14	2026-04-16 20:27:20.233	1	2026-04-09 20:32:00.375	{}
+0fdb7806-f0ec-44af-add5-5db618fed808	cmnrwz3k0000jvfxpzyauv8cd	SOLVE	DSA Sprint: 25 core backend problems with explanations	Solve a focused set of 25 backend-relevant algorithm problems covering arrays, hash maps, two pointers, stacks/queues, binary search, trees, graphs, and heaps. For each problem, write a short solution note explaining the approach, time/space complexity, and one edge case. This creates direct evidence for problem-solving ability and builds interview readiness fast.	COMPLETED	[{"url": "https://www.techinterviewhandbook.org/grind75", "type": "docs", "title": "Grind 75 - Customizable LeetCode Study Plan"}, {"url": "https://neetcode.io/roadmap", "type": "course", "title": "NeetCode Roadmap - Visual DSA Guide"}, {"url": "https://leetcodethehardway.com/", "type": "article", "title": "LeetCode The Hard Way - Pattern-Based Explanations"}]	18	2026-04-16 20:33:59.178	1	2026-04-10 05:06:21.136	{}
 d72642e3-ee82-4007-8538-e27e3a5061b4	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Backend Service with Real Test Coverage in CI	Build a small REST API service with 3-5 endpoints, a database, and a meaningful domain model. Add unit, integration, and contract tests, then wire them into CI so merges fail when tests fail or coverage drops below a threshold. This directly addresses the biggest gap: evidence of automated testing at scale.	LOCKED	[{"url": "https://martinfowler.com/articles/practical-test-pyramid.html", "type": "article", "title": "The Practical Test Pyramid"}, {"url": "https://docs.pact.io/5-minute-getting-started-guide", "type": "docs", "title": "Consumer-Driven Contract Testing with Pact"}, {"url": "https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/measuring-and-reporting-code-coverage", "type": "docs", "title": "Building and testing with Code Coverage in GitHub Actions"}]	22	2026-04-16 20:33:59.178	2	\N	{}
 7c0ab934-a937-4679-bd70-f1ac0a71eb0d	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Observability Upgrade: logs, metrics, traces, and alerting	Instrument the API from mission 2 with structured JSON logging, request metrics, and distributed tracing using OpenTelemetry or an equivalent stack. Add one dashboard and one alert tied to a simple SLI, such as error rate or p95 latency, so the service is measurable in production-like conditions.	LOCKED	[{"url": "https://opentelemetry.io/docs/instrumentation/", "type": "docs", "title": "OpenTelemetry Instrumentation Documentation"}, {"url": "https://sre.google/sre-book/monitoring-distributed-systems/", "type": "article", "title": "Google SRE Book: Monitoring Distributed Systems"}, {"url": "https://logz.io/blog/structured-logging/", "type": "article", "title": "A Practical Guide to Structured Logging"}]	16	2026-04-23 20:33:59.178	3	\N	{}
 b411923a-fbf3-46ac-a9cc-6c7262fc4ec7	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Security Hardening Pass for an API handling sensitive data	Harden the service by adding secrets management, input validation, rate limiting, and audit logs for sensitive actions. Document how you handle OWASP Top 10 risks for the app, and include authn/authz patterns, token handling, and a minimal threat model for third-party calls or PII fields.	LOCKED	[{"url": "https://owasp.org/www-project-api-security/", "type": "docs", "title": "OWASP API Security Top 10"}, {"url": "https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html", "type": "article", "title": "REST Security Cheat Sheet"}, {"url": "https://github.com/shieldfy/API-Security-Checklist", "type": "docs", "title": "API Security Checklist"}]	14	2026-04-23 20:33:59.178	4	\N	{}
-0fdb7806-f0ec-44af-add5-5db618fed808	cmnrwz3k0000jvfxpzyauv8cd	SOLVE	DSA Sprint: 25 core backend problems with explanations	Solve a focused set of 25 backend-relevant algorithm problems covering arrays, hash maps, two pointers, stacks/queues, binary search, trees, graphs, and heaps. For each problem, write a short solution note explaining the approach, time/space complexity, and one edge case. This creates direct evidence for problem-solving ability and builds interview readiness fast.	COMPLETED	[{"url": "https://www.techinterviewhandbook.org/grind75", "type": "docs", "title": "Grind 75 - Customizable LeetCode Study Plan"}, {"url": "https://neetcode.io/roadmap", "type": "course", "title": "NeetCode Roadmap - Visual DSA Guide"}, {"url": "https://leetcodethehardway.com/", "type": "article", "title": "LeetCode The Hard Way - Pattern-Based Explanations"}]	18	2026-04-16 20:33:59.178	1	2026-04-10 00:12:04.77	{}
+ea8f293d-a897-4eb0-8570-b4c1909978d3	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Build a REST API with CRUD, validation, and pagination	Create a small backend service for a simple domain such as tasks, books, or expenses. Implement REST endpoints for create, read, update, and delete, plus input validation, pagination, and consistent error responses. This proves you can design clean APIs and ship a working backend from end to end.	AVAILABLE	[{"url": "https://www.freecodecamp.org/news/build-a-restful-api-using-node-express-and-mongodb/", "type": "article", "title": "Build a RESTful API with Node.js, Express, and MongoDB"}, {"url": "https://spring.io/guides/tutorials/rest/", "type": "course", "title": "Building REST services with Spring"}, {"url": "https://fastapi.tiangolo.com/tutorial/sql-databases/", "type": "docs", "title": "SQL (Relational) Databases with FastAPI"}]	14	2026-04-16 20:27:20.233	1	2026-04-09 20:32:00.375	{}
 4eddd8aa-5874-458e-9ddc-a721726596ea	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Cloud Deployment on Managed Services	Deploy the service to a cloud provider using managed networking and compute primitives, such as a VPC, managed database, and managed queue or cache. Include IAM roles, environment separation, and at least one cost-control decision, such as autoscaling limits or instance sizing rationale.	LOCKED	[]	20	2026-04-30 20:33:59.178	5	\N	{}
 e98a47be-9ea1-40c8-927d-50b9e570aa46	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Online Schema Migration and Backfill Drill	Perform a safe schema evolution on the service database using versioned migrations, a backward-compatible deploy, and a controlled backfill. Include rollback steps, backup/restore verification, and a short disaster-recovery note so the app demonstrates operability beyond happy-path coding.	LOCKED	[]	15	2026-05-07 20:33:59.178	6	\N	{}
 8c406f2b-0033-4152-8944-d92699911c15	cmnrwz3k0000jvfxpzyauv8cd	COMMUNICATE	Engineering writeup: How I took a backend service from prototype to production-ready	Write a concise technical blog post or README-style case study that explains the service architecture, the test strategy, observability setup, security hardening, cloud deployment, and schema migration approach. Focus on decisions, tradeoffs, and measurable outcomes, not just features.	LOCKED	[]	8	2026-05-07 20:33:59.178	7	\N	{}
@@ -721,6 +731,7 @@ a5fae898-219a-4bef-89c8-c9b4c5c2e3ca	cmnrzdxq5000707xpnwpriz93	BUILD	On-Call Run
 COPY public."Notification" (id, "userId", type, title, body, read, "actionUrl", "createdAt") FROM stdin;
 cmnrxnmo2000svfxpkhykqiru	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	INTERVIEW_READY	Interview ready: Build a REST API with CRUD, validation, and pagination	You've completed a mission. Start your mock interview now.	f	/interview/cmnrxnmnw000rvfxpgkijoqm0	2026-04-09 20:32:00.386
 cmns5in930001wwxpzeq56wuk	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	INTERVIEW_READY	Interview ready: DSA Sprint: 25 core backend problems with explanations	You've completed a mission. Start your mock interview now.	f	/interview/cmns5in8t0000wwxpjiphsmsd	2026-04-10 00:12:04.791
+cmnsg13o60003wdxp55aul431	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	INTERVIEW_READY	Interview ready: DSA Sprint: 25 core backend problems with explanations	You've completed a mission. Start your mock interview now.	f	/interview/cmnsg12z90002wdxpi5anmknf/call	2026-04-10 05:06:22.038
 \.
 
 
@@ -1162,5 +1173,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eVtNc9UB9nntKr3xG7AlcTuC4fVrQ2jKudMbo3jHBqvp5apBd3tC4Q4WzaScPfL
+\unrestrict bl3FCmpgXP8sjTffN5gSUj11kyOXYZMPR7bN72athUIUnUnP6fzhBQLLpsM48CI
 

@@ -89,9 +89,9 @@ export async function POST(req: NextRequest) {
       pdf_b64: pdfB64,
     });
     return NextResponse.json({ status: "done" });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: "Resume ingestion failed", detail: err?.message },
+      { error: "Resume ingestion failed", detail: err instanceof Error ? err.message : String(err) },
       { status: 502 }
     );
   }
