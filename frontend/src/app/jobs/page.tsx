@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import {
@@ -41,6 +42,7 @@ function MatchBadge({ score }: { score: number | null }) {
 export default function JobsPage() {
   const [applying, setApplying] = useState<string | null>(null);
   const qc = useQueryClient();
+  const router = useRouter();
 
   const { data, isLoading } = useQuery({
     queryKey: ["jobs"],
@@ -99,7 +101,8 @@ export default function JobsPage() {
           {jobs.map((job) => (
             <div
               key={job.id}
-              className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 hover:border-zinc-700 transition-colors"
+              onClick={() => router.push(`/jobs/${job.id}`)}
+              className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 hover:border-zinc-700 transition-colors cursor-pointer"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -145,7 +148,7 @@ export default function JobsPage() {
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => saveMutation.mutate(job.id)}
+                    onClick={(e) => { e.stopPropagation(); saveMutation.mutate(job.id); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-amber-500/30 transition-colors"
                   >
                     {job.isSaved ? (
@@ -157,7 +160,8 @@ export default function JobsPage() {
 
                   {!job.applicationStatus ? (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setApplying(job.id);
                         applyMutation.mutate(job.id);
                       }}
@@ -176,6 +180,7 @@ export default function JobsPage() {
                       href={job.applyUrl}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 text-zinc-400 hover:text-white text-xs rounded-lg transition-colors"
                     >
                       Apply
