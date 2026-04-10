@@ -42,6 +42,8 @@ if (process.env.AUTH_LINKEDIN_ID && process.env.AUTH_LINKEDIN_SECRET) {
     LinkedIn({
       clientId: process.env.AUTH_LINKEDIN_ID,
       clientSecret: process.env.AUTH_LINKEDIN_SECRET,
+      checks: ["state"],
+      client: { token_endpoint_auth_method: "client_secret_post" },
       authorization: {
         params: { scope: linkedInScope },
       },
