@@ -39,32 +39,41 @@ export async function POST(req: NextRequest) {
   const hoursPerWeek = Number(body.hoursPerWeek) || 10;
   const dreamCompanies = Array.isArray(body.dreamCompanies) ? body.dreamCompanies : [];
 
-  // 3. GitHub login — use session name (now set to login via profile() callback),
-  //    fall back to looking up from account table if that's stale.
-  let githubLogin = session.user.name ?? "";
+  // 3. GitHub login (optional if user authenticated via Google).
+  let githubLogin = "";
+  let hasGithubLinked = false;
   try {
     const account = await prisma.account.findFirst({
       where: { userId: session.user.id, provider: "github" },
       select: { providerAccountId: true },
     });
-    if (account?.providerAccountId && process.env.GITHUB_TOKEN) {
-      const ghRes = await fetch(
-        `https://api.github.com/user/${account.providerAccountId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-            Accept: "application/vnd.github+json",
-          },
-          signal: AbortSignal.timeout(5000),
+    if (account?.providerAccountId) {
+      hasGithubLinked = true;
+      if (process.env.GITHUB_TOKEN) {
+        const ghRes = await fetch(
+          `https://api.github.com/user/${account.providerAccountId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+              Accept: "application/vnd.github+json",
+            },
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (ghRes.ok) {
+          const ghUser = (await ghRes.json()) as { login: string };
+          githubLogin = ghUser.login;
+        } else {
+          // Best-effort fallback; for GitHub-authenticated users this is usually the login.
+          githubLogin = session.user.name ?? "";
         }
-      );
-      if (ghRes.ok) {
-        const ghUser = (await ghRes.json()) as { login: string };
-        githubLogin = ghUser.login;
+      } else {
+        // Best-effort fallback; for GitHub-authenticated users this is usually the login.
+        githubLogin = session.user.name ?? "";
       }
     }
   } catch {
-    // Non-fatal — use session name
+    // Non-fatal — keep GitHub optional
   }
 
   // 4. Upsert student profile
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest) {
       where: { userId: session.user.id },
       create: {
         userId: session.user.id,
-        githubUsername: githubLogin || undefined,
+        githubUsername: hasGithubLinked ? githubLogin || undefined : undefined,
         leetcodeHandle: leetcodeHandle || undefined,
         codeforcesHandle: codeforcesHandle || undefined,
         targetRole,
@@ -84,7 +93,7 @@ export async function POST(req: NextRequest) {
         onboardingDone: true,
       },
       update: {
-        githubUsername: githubLogin || undefined,
+        githubUsername: hasGithubLinked ? githubLogin || undefined : undefined,
         leetcodeHandle: leetcodeHandle || undefined,
         codeforcesHandle: codeforcesHandle || undefined,
         targetRole,
@@ -102,11 +111,22 @@ export async function POST(req: NextRequest) {
 
   // 5. Platform connections + queue (best-effort — failures must not block response)
   try {
-    await prisma.platformConnection.upsert({
-      where: { studentProfileId_platform: { studentProfileId: profile.id, platform: "GITHUB" } },
-      create: { studentProfileId: profile.id, platform: "GITHUB", syncStatus: "PENDING" },
-      update: { syncStatus: "PENDING", errorMessage: null },
-    });
+    if (hasGithubLinked && githubLogin) {
+      await prisma.platformConnection.upsert({
+        where: {
+          studentProfileId_platform: {
+            studentProfileId: profile.id,
+            platform: "GITHUB",
+          },
+        },
+        create: {
+          studentProfileId: profile.id,
+          platform: "GITHUB",
+          syncStatus: "PENDING",
+        },
+        update: { syncStatus: "PENDING", errorMessage: null },
+      });
+    }
 
     if (leetcodeHandle) {
       await prisma.platformConnection.upsert({
@@ -116,16 +136,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const ingestionJobs = [
-      enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: githubLogin }),
-    ];
-    const directIngestionCalls: Array<() => Promise<unknown>> = [
-      () => aiClient.post(
-        "/ingest/github",
-        { student_profile_id: profile.id, username: githubLogin },
-        { timeout: 600_000 },
-      ),
-    ];
+    const ingestionJobs: Array<Promise<unknown>> = [];
+    const directIngestionCalls: Array<() => Promise<unknown>> = [];
+    if (hasGithubLinked && githubLogin) {
+      ingestionJobs.push(
+        enqueueIngestion({
+          type: "GITHUB",
+          studentProfileId: profile.id,
+          username: githubLogin,
+        })
+      );
+      directIngestionCalls.push(() =>
+        aiClient.post(
+          "/ingest/github",
+          { student_profile_id: profile.id, username: githubLogin },
+          { timeout: 600_000 },
+        )
+      );
+    }
     if (leetcodeHandle) {
       ingestionJobs.push(
         enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: leetcodeHandle })
@@ -199,8 +227,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Set Redis counter so the worker knows how many ingestion jobs to wait for
-    await redis.set(`pending_ingestion:${profile.id}`, ingestionJobs.length, "EX", 3600);
-    await Promise.allSettled(ingestionJobs);
+    if (ingestionJobs.length > 0) {
+      await redis.set(`pending_ingestion:${profile.id}`, ingestionJobs.length, "EX", 3600);
+      await Promise.allSettled(ingestionJobs);
+    }
 
     if (DIRECT_IN_DEV) {
       for (const run of directIngestionCalls) {

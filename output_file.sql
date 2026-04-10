@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PZAlQtB1YDFaphxsOO6lIeMe69KHTMPtjz5NOm7XGFQGh1DoP56YdgAahkdW8NQ
+\restrict eVtNc9UB9nntKr3xG7AlcTuC4fVrQ2jKudMbo3jHBqvp5apBd3tC4Q4WzaScPfL
 
 -- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 17.7 (Homebrew)
@@ -541,6 +541,7 @@ COPY public."Account" (id, "userId", type, provider, "providerAccountId", access
 cmnrwy222000hvfxpz9gzsdwo	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	oauth	github	53257475	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	\N	\N	\N	read:user,user:email	\N	bearer
 cmnrxpx0l000vvfxpms0ka7we	a42e1d90-db52-43fa-825c-7030dbcda2bd	oauth	github	177600914	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	\N	\N	\N	read:user,user:email	\N	bearer
 cmnrzczmb000507xpm0vuxd5l	3d15975f-5433-4a6b-a1f9-9fb0832980fa	oauth	github	225555551	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	\N	\N	\N	read:user,user:email	\N	bearer
+cmns66gd90002wwxpw3imnpsv	6466ca2d-e153-4083-9345-234afeedd6ee	oidc	google	104660003209299126478	ya29.a0Aa7MYioWbySIBEQctPCI3RZr0Pj5pkYAO6RiBtYKBScJ_IWpUTxz5EOurFyBAbjrUACwpiRh7yFj7CLK9UmHi93CtFIVc6YxEqJu-mDUr-vydTc4Fi9b6k5aMz697T6Y88cHWI52qLAs6etRHE5sJOjIe4_7TzGTHN7mwnuLW_vtwFRkAdh1N8bGDOVB8JJ4HtR2Be0aCgYKAWUSARASFQHGX2MinROIZaphOzvIs-nF5zbC6g0206	\N	1775784634	eyJhbGciOiJSUzI1NiIsImtpZCI6ImNjZTRlMDI0YTUxYWEwYzFjNDFjMWE0NTE1YTQxZGQ3ZTk2MTkzNmIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxMDA0Mjg3MDkxNDItZXZrbzR2Nm1zbzNydmFwbnNkNDdsZWMzMzhpMzRmajguYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxMDA0Mjg3MDkxNDItZXZrbzR2Nm1zbzNydmFwbnNkNDdsZWMzMzhpMzRmajguYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDQ2NjAwMDMyMDkyOTkxMjY0NzgiLCJlbWFpbCI6ImFkaTMzMTA0OUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiYXRfaGFzaCI6IlQ2dFRXUWtRTmJSS2RiLUNpbmhHUXciLCJuYW1lIjoiYWRpIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0xwR2labHVua05RcmtFMEM0ajFibDgyOTZzUEVZRm93QWJrY2htQkIzcW1UQ0dGdz1zOTYtYyIsImdpdmVuX25hbWUiOiJhZGkiLCJpYXQiOjE3NzU3ODEwMzUsImV4cCI6MTc3NTc4NDYzNX0.YqbiIcN7BCDChQd6aW3YFpSzUxKcnJ625fdr5VN0rUwYo0wgh_WJtTuJPSp-vrNbgjOyy6i9JLwKjkzwWqhRo-ZJY-o0TJwI5pwjG4wtEYlXQnNMFGZpXut4BYyjnC0hdpecszmFp8Ay_JTWZXn_fpPSOvnSBjf64beZYpiEaUlAXtuZCjZaaYtGzmoqBj92Mbh10KiFXxqhLoKv4LXlZwMPhHGDjzBLdpwSZ2Qnjj0NxRxt9k1bLzzqPwbdeRkIdSm4CsSVBTxoM57e_UorzvhpkDrvye0agEsYsTGEtJ85kZfDf1JOps_8kTCbRKGgGfTDL1Jp45AMs6EisGvm1w	https://www.googleapis.com/auth/userinfo.email openid https://www.googleapis.com/auth/userinfo.profile	\N	bearer
 \.
 
 
@@ -549,6 +550,7 @@ cmnrzczmb000507xpm0vuxd5l	3d15975f-5433-4a6b-a1f9-9fb0832980fa	oauth	github	2255
 --
 
 COPY public."AdminProfile" (id, "userId", "universityId") FROM stdin;
+d14e215a-c7bb-44e8-8590-8783d85c93a8	6466ca2d-e153-4083-9345-234afeedd6ee	714a57b7-c560-42cb-b276-2475cbd5289c
 \.
 
 
@@ -575,6 +577,7 @@ COPY public."CompanyDrive" (id, "universityId", "companyName", roles, "driveDate
 
 COPY public."InterviewSession" (id, "studentProfileId", "missionId", "interviewType", status, transcript, debrief, "sentimentScores", "overallScore", "createdAt", "completedAt") FROM stdin;
 cmnrxnmnw000rvfxpgkijoqm0	cmnrwz3k0000jvfxpzyauv8cd	ea8f293d-a897-4eb0-8570-b4c1909978d3	TECHNICAL	IN_PROGRESS	[]	\N	\N	\N	2026-04-09 20:32:00.38	\N
+cmns5in8t0000wwxpjiphsmsd	cmnrwz3k0000jvfxpzyauv8cd	0fdb7806-f0ec-44af-add5-5db618fed808	TECHNICAL	IN_PROGRESS	[]	\N	\N	\N	2026-04-10 00:12:04.781	\N
 \.
 
 
@@ -683,11 +686,11 @@ a541a8d5-d619-490f-be21-09da4ae361b3	hTrbMjScoqRk81Y7AAAAAA==	Remote Java Backen
 --
 
 COPY public."Mission" (id, "studentProfileId", type, title, description, status, resources, "estimatedHours", deadline, "orderIndex", "completedAt", "prerequisiteIds") FROM stdin;
-0fdb7806-f0ec-44af-add5-5db618fed808	cmnrwz3k0000jvfxpzyauv8cd	SOLVE	DSA Sprint: 25 core backend problems with explanations	Solve a focused set of 25 backend-relevant algorithm problems covering arrays, hash maps, two pointers, stacks/queues, binary search, trees, graphs, and heaps. For each problem, write a short solution note explaining the approach, time/space complexity, and one edge case. This creates direct evidence for problem-solving ability and builds interview readiness fast.	IN_PROGRESS	[{"url": "https://www.techinterviewhandbook.org/grind75", "type": "docs", "title": "Grind 75 - Customizable LeetCode Study Plan"}, {"url": "https://neetcode.io/roadmap", "type": "course", "title": "NeetCode Roadmap - Visual DSA Guide"}, {"url": "https://leetcodethehardway.com/", "type": "article", "title": "LeetCode The Hard Way - Pattern-Based Explanations"}]	18	2026-04-16 20:33:59.178	1	\N	{}
 ea8f293d-a897-4eb0-8570-b4c1909978d3	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Build a REST API with CRUD, validation, and pagination	Create a small backend service for a simple domain such as tasks, books, or expenses. Implement REST endpoints for create, read, update, and delete, plus input validation, pagination, and consistent error responses. This proves you can design clean APIs and ship a working backend from end to end.	COMPLETED	[{"url": "https://www.freecodecamp.org/news/build-a-restful-api-using-node-express-and-mongodb/", "type": "article", "title": "Build a RESTful API with Node.js, Express, and MongoDB"}, {"url": "https://spring.io/guides/tutorials/rest/", "type": "course", "title": "Building REST services with Spring"}, {"url": "https://fastapi.tiangolo.com/tutorial/sql-databases/", "type": "docs", "title": "SQL (Relational) Databases with FastAPI"}]	14	2026-04-16 20:27:20.233	1	2026-04-09 20:32:00.375	{}
 d72642e3-ee82-4007-8538-e27e3a5061b4	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Backend Service with Real Test Coverage in CI	Build a small REST API service with 3-5 endpoints, a database, and a meaningful domain model. Add unit, integration, and contract tests, then wire them into CI so merges fail when tests fail or coverage drops below a threshold. This directly addresses the biggest gap: evidence of automated testing at scale.	LOCKED	[{"url": "https://martinfowler.com/articles/practical-test-pyramid.html", "type": "article", "title": "The Practical Test Pyramid"}, {"url": "https://docs.pact.io/5-minute-getting-started-guide", "type": "docs", "title": "Consumer-Driven Contract Testing with Pact"}, {"url": "https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/measuring-and-reporting-code-coverage", "type": "docs", "title": "Building and testing with Code Coverage in GitHub Actions"}]	22	2026-04-16 20:33:59.178	2	\N	{}
 7c0ab934-a937-4679-bd70-f1ac0a71eb0d	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Observability Upgrade: logs, metrics, traces, and alerting	Instrument the API from mission 2 with structured JSON logging, request metrics, and distributed tracing using OpenTelemetry or an equivalent stack. Add one dashboard and one alert tied to a simple SLI, such as error rate or p95 latency, so the service is measurable in production-like conditions.	LOCKED	[{"url": "https://opentelemetry.io/docs/instrumentation/", "type": "docs", "title": "OpenTelemetry Instrumentation Documentation"}, {"url": "https://sre.google/sre-book/monitoring-distributed-systems/", "type": "article", "title": "Google SRE Book: Monitoring Distributed Systems"}, {"url": "https://logz.io/blog/structured-logging/", "type": "article", "title": "A Practical Guide to Structured Logging"}]	16	2026-04-23 20:33:59.178	3	\N	{}
 b411923a-fbf3-46ac-a9cc-6c7262fc4ec7	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Security Hardening Pass for an API handling sensitive data	Harden the service by adding secrets management, input validation, rate limiting, and audit logs for sensitive actions. Document how you handle OWASP Top 10 risks for the app, and include authn/authz patterns, token handling, and a minimal threat model for third-party calls or PII fields.	LOCKED	[{"url": "https://owasp.org/www-project-api-security/", "type": "docs", "title": "OWASP API Security Top 10"}, {"url": "https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html", "type": "article", "title": "REST Security Cheat Sheet"}, {"url": "https://github.com/shieldfy/API-Security-Checklist", "type": "docs", "title": "API Security Checklist"}]	14	2026-04-23 20:33:59.178	4	\N	{}
+0fdb7806-f0ec-44af-add5-5db618fed808	cmnrwz3k0000jvfxpzyauv8cd	SOLVE	DSA Sprint: 25 core backend problems with explanations	Solve a focused set of 25 backend-relevant algorithm problems covering arrays, hash maps, two pointers, stacks/queues, binary search, trees, graphs, and heaps. For each problem, write a short solution note explaining the approach, time/space complexity, and one edge case. This creates direct evidence for problem-solving ability and builds interview readiness fast.	COMPLETED	[{"url": "https://www.techinterviewhandbook.org/grind75", "type": "docs", "title": "Grind 75 - Customizable LeetCode Study Plan"}, {"url": "https://neetcode.io/roadmap", "type": "course", "title": "NeetCode Roadmap - Visual DSA Guide"}, {"url": "https://leetcodethehardway.com/", "type": "article", "title": "LeetCode The Hard Way - Pattern-Based Explanations"}]	18	2026-04-16 20:33:59.178	1	2026-04-10 00:12:04.77	{}
 4eddd8aa-5874-458e-9ddc-a721726596ea	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Cloud Deployment on Managed Services	Deploy the service to a cloud provider using managed networking and compute primitives, such as a VPC, managed database, and managed queue or cache. Include IAM roles, environment separation, and at least one cost-control decision, such as autoscaling limits or instance sizing rationale.	LOCKED	[]	20	2026-04-30 20:33:59.178	5	\N	{}
 e98a47be-9ea1-40c8-927d-50b9e570aa46	cmnrwz3k0000jvfxpzyauv8cd	BUILD	Online Schema Migration and Backfill Drill	Perform a safe schema evolution on the service database using versioned migrations, a backward-compatible deploy, and a controlled backfill. Include rollback steps, backup/restore verification, and a short disaster-recovery note so the app demonstrates operability beyond happy-path coding.	LOCKED	[]	15	2026-05-07 20:33:59.178	6	\N	{}
 8c406f2b-0033-4152-8944-d92699911c15	cmnrwz3k0000jvfxpzyauv8cd	COMMUNICATE	Engineering writeup: How I took a backend service from prototype to production-ready	Write a concise technical blog post or README-style case study that explains the service architecture, the test strategy, observability setup, security hardening, cloud deployment, and schema migration approach. Focus on decisions, tradeoffs, and measurable outcomes, not just features.	LOCKED	[]	8	2026-05-07 20:33:59.178	7	\N	{}
@@ -700,7 +703,6 @@ c9812ba2-347f-4f7f-aec5-eb28cbf61bbb	cmnrxskrs000xvfxp2vo8w9sq	COMMUNICATE	Launc
 0b445f8b-59e5-42f1-97ed-b56b191556d4	cmnrxskrs000xvfxp2vo8w9sq	SOLVE	Experiment Design and Analysis Spec	Design an experiment framework for one product hypothesis, including hypothesis, primary metric, guardrail metrics, sample size assumptions, assignment unit, and stop conditions. Provide the analysis plan for interpreting results and the decision rule for shipping, iterating, or reverting. This should mirror the rigor expected in a product analytics review.	LOCKED	[]	9	2026-04-23 21:07:26.959	6	\N	{}
 4b4dc089-670f-4c68-ad27-226dedbf0ebb	cmnrxskrs000xvfxp2vo8w9sq	BUILD	Quality Gates and Definition-of-Done Enforcement	Add a quality gate pipeline that blocks merges unless the feature passes lint, unit tests, and a small E2E smoke suite. Include acceptance criteria templates in the repo and wire them into pull request checks or CI status requirements. This should make product delivery observable, testable, and consistent with a clear Definition of Done.	LOCKED	[]	13	2026-04-30 21:07:26.959	7	\N	{}
 d3e1c9da-3056-4967-bdea-8affe7d0524f	cmnrxskrs000xvfxp2vo8w9sq	COMMUNICATE	Cross-Functional Product Review Packet	Produce a review packet that bundles the strategy, instrumentation plan, experiment design, and launch readiness into one concise artifact. Include open questions, tradeoffs, risks, owners, and a decision log format for follow-up reviews. This is meant to simulate the artifact you would bring to a product/engineering/design leadership meeting.	LOCKED	[]	6	2026-04-30 21:07:26.959	8	\N	{}
-9415d8fb-4c2f-4513-8d87-12ccdf1cf804	cmnrzdxq5000707xpnwpriz93	COMMUNICATE	Backend Quality Gate RFC with Test Pyramid and Coverage Targets	Write a short RFC that defines the testing strategy for a backend service across unit, integration, contract, and load tests. Specify what classes of defects each layer catches, the minimum coverage expectations, and the CI gates that prevent regressions. This should demonstrate that you can design a verification strategy, not just write tests.	AVAILABLE	[]	6	2026-04-16 21:21:55.863	1	\N	{}
 d2e7ef47-c239-4eb8-b690-2af71c337d78	cmnrzdxq5000707xpnwpriz93	BUILD	Instrument a Service with Structured Logging, Metrics, and Traces	Implement observability in a small backend service using structured JSON logs, Prometheus metrics, and OpenTelemetry tracing. Add request IDs, latency histograms, error counters, and span propagation across at least two internal calls. The goal is to show you can make a service diagnosable in production.	LOCKED	[]	12	2026-04-23 21:21:55.863	2	\N	{}
 101a5225-c81a-45d9-abea-f888afb5d40b	cmnrzdxq5000707xpnwpriz93	BUILD	Create a Production-Grade Test Suite for a Reservation API	Build unit, integration, and contract tests for a backend API that creates and retrieves reservations. Include at least one test for a concurrency edge case and one for schema or API compatibility. This directly closes the gap on testing depth and backend verification discipline.	LOCKED	[]	14	2026-04-30 21:21:55.863	3	\N	{}
 8e7f7cb2-1bdf-45b4-ae0e-9d5abac2df56	cmnrzdxq5000707xpnwpriz93	BUILD	Implement Transaction-Safe Seat Reservation with Locking and Idempotency	Build a reservation write-path that prevents double booking using ACID transactions, row-level locking or optimistic concurrency, and idempotency keys. Include an outbox-style write for downstream event publication so the state change and event emission remain consistent. This is a strong signal for transactional integrity under contention.	LOCKED	[]	18	2026-05-14 21:21:55.863	4	\N	{}
@@ -708,6 +710,7 @@ d2e7ef47-c239-4eb8-b690-2af71c337d78	cmnrzdxq5000707xpnwpriz93	BUILD	Instrument 
 1cc2f894-1c3f-4b76-a94d-dcacd3aeb6e6	cmnrzdxq5000707xpnwpriz93	BUILD	Add Load Testing and Baseline Capacity Analysis to a Backend Service	Create a load test suite that exercises normal traffic, burst traffic, and failure conditions for an API. Capture latency percentiles, throughput, error rates, and saturation indicators, then turn the results into a short capacity report with recommended scaling thresholds. This demonstrates production performance validation rather than functional correctness only.	LOCKED	[]	10	2026-05-28 21:21:55.863	6	\N	{}
 a5fae898-219a-4bef-89c8-c9b4c5c2e3ca	cmnrzdxq5000707xpnwpriz93	BUILD	On-Call Runbook, Alerts, and Postmortem Template for a Backend Incident	Create a minimal but realistic incident response package for a backend service: one SLO, one error-budget policy, three alert rules, and a step-by-step runbook for a common outage scenario. Add a postmortem template that captures timeline, impact, root cause, and corrective actions. This addresses SRE readiness and operational ownership.	LOCKED	[]	7	2026-06-04 21:21:55.863	7	\N	{}
 8a0e3ced-47f2-4faa-8226-4dbec4282220	cmnrzdxq5000707xpnwpriz93	SOLVE	Concurrency and Queueing Problem Set for Backend Systems	Solve a focused set of backend-relevant algorithm and systems problems involving queues, graphs, rate limiting, and concurrency primitives. Write solutions with complexity analysis and a short note on how each pattern maps to real backend use cases such as scheduling, dependency resolution, or worker coordination. This improves algorithmic credibility for backend interviews.	LOCKED	[]	9	2026-06-04 21:21:55.863	8	\N	{}
+9415d8fb-4c2f-4513-8d87-12ccdf1cf804	cmnrzdxq5000707xpnwpriz93	COMMUNICATE	Backend Quality Gate RFC with Test Pyramid and Coverage Targets	Write a short RFC that defines the testing strategy for a backend service across unit, integration, contract, and load tests. Specify what classes of defects each layer catches, the minimum coverage expectations, and the CI gates that prevent regressions. This should demonstrate that you can design a verification strategy, not just write tests.	IN_PROGRESS	[]	6	2026-04-16 21:21:55.863	1	\N	{}
 \.
 
 
@@ -717,6 +720,7 @@ a5fae898-219a-4bef-89c8-c9b4c5c2e3ca	cmnrzdxq5000707xpnwpriz93	BUILD	On-Call Run
 
 COPY public."Notification" (id, "userId", type, title, body, read, "actionUrl", "createdAt") FROM stdin;
 cmnrxnmo2000svfxpkhykqiru	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	INTERVIEW_READY	Interview ready: Build a REST API with CRUD, validation, and pagination	You've completed a mission. Start your mock interview now.	f	/interview/cmnrxnmnw000rvfxpgkijoqm0	2026-04-09 20:32:00.386
+cmns5in930001wwxpzeq56wuk	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	INTERVIEW_READY	Interview ready: DSA Sprint: 25 core backend problems with explanations	You've completed a mission. Start your mock interview now.	f	/interview/cmns5in8t0000wwxpjiphsmsd	2026-04-10 00:12:04.791
 \.
 
 
@@ -766,6 +770,7 @@ COPY public."Session" (id, "sessionToken", "userId", expires) FROM stdin;
 cmnrwy227000ivfxpk9zxhjcr	08da06c6-26e9-44c7-bdf0-5bc78a537a93	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	2026-05-09 20:12:07.278
 cmnrxpx0o000wvfxpy892hpw6	022053c6-f651-4094-adc8-452c9351bbed	a42e1d90-db52-43fa-825c-7030dbcda2bd	2026-05-09 20:33:47.111
 cmnrzczmf000607xpqg6jrmsv	bbedc77e-e12a-4f96-8fb2-0e1be4bceda7	3d15975f-5433-4a6b-a1f9-9fb0832980fa	2026-05-09 21:19:43.19
+cmns66gdh0003wwxpjmbsbbac	3961a4e1-003b-4159-8dcc-3e1f0be8bbe0	6466ca2d-e153-4083-9345-234afeedd6ee	2026-05-10 00:30:35.619
 \.
 
 
@@ -774,9 +779,9 @@ cmnrzczmf000607xpqg6jrmsv	bbedc77e-e12a-4f96-8fb2-0e1be4bceda7	3d15975f-5433-4a6
 --
 
 COPY public."StudentProfile" (id, "userId", "universityId", department, "graduationYear", "githubUsername", "leetcodeHandle", "codeforcesHandle", "linkedinUrl", "targetRole", "dreamCompanies", "timelineWeeks", "hoursPerWeek", segment, "streakDays", "lastActiveAt", "onboardingDone", "createdAt", "updatedAt") FROM stdin;
-cmnrwz3k0000jvfxpzyauv8cd	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	\N	\N	\N	Adityaadpandey	adityapandeyadp	adityapandeyadp	\N	Backend Engineer	{Stripe,Notion,Salesforce,Coinbase}	12	28	CRITICAL	0	2026-04-09 20:33:47.121	t	2026-04-09 20:12:55.873	2026-04-09 20:27:05.704
-cmnrxskrs000xvfxp2vo8w9sq	a42e1d90-db52-43fa-825c-7030dbcda2bd	\N	\N	\N	Umyal06dxt	umyal06dxt	\N	\N	Product Manager	{Netflix,Apple,Google}	12	26	AT_RISK	0	2026-04-09 21:07:15.562	t	2026-04-09 20:35:51.208	2026-04-09 21:00:55.094
-cmnrzdxq5000707xpnwpriz93	3d15975f-5433-4a6b-a1f9-9fb0832980fa	\N	\N	\N	adp-alpha	adityapandeyadp	\N	\N	Backend Engineer	{Google,Meta,Microsoft}	12	10	CRITICAL	0	2026-04-09 21:21:45.996	t	2026-04-09 21:20:27.39	2026-04-09 21:20:27.39
+cmnrwz3k0000jvfxpzyauv8cd	7a724ce1-bd24-4fde-ac0b-15da7a34aff0	714a57b7-c560-42cb-b276-2475cbd5289c	\N	\N	Adityaadpandey	adityapandeyadp	adityapandeyadp	\N	Backend Engineer	{Stripe,Notion,Salesforce,Coinbase}	12	28	CRITICAL	0	2026-04-09 20:33:47.121	t	2026-04-09 20:12:55.873	2026-04-09 20:27:05.704
+cmnrxskrs000xvfxp2vo8w9sq	a42e1d90-db52-43fa-825c-7030dbcda2bd	714a57b7-c560-42cb-b276-2475cbd5289c	\N	\N	Umyal06dxt	umyal06dxt	\N	\N	Product Manager	{Netflix,Apple,Google}	12	26	AT_RISK	0	2026-04-09 21:07:15.562	t	2026-04-09 20:35:51.208	2026-04-09 21:00:55.094
+cmnrzdxq5000707xpnwpriz93	3d15975f-5433-4a6b-a1f9-9fb0832980fa	714a57b7-c560-42cb-b276-2475cbd5289c	\N	\N	adp-alpha	adityapandeyadp	\N	\N	Backend Engineer	{Google,Meta,Microsoft}	12	10	CRITICAL	0	2026-04-09 21:21:45.996	t	2026-04-09 21:20:27.39	2026-04-09 21:20:27.39
 \.
 
 
@@ -785,6 +790,7 @@ cmnrzdxq5000707xpnwpriz93	3d15975f-5433-4a6b-a1f9-9fb0832980fa	\N	\N	\N	adp-alph
 --
 
 COPY public."University" (id, name, domain, city, plan, "createdAt") FROM stdin;
+714a57b7-c560-42cb-b276-2475cbd5289c	Default University	\N	\N	FREE	2026-04-10 00:34:38.081
 \.
 
 
@@ -796,6 +802,7 @@ COPY public."User" (id, email, name, image, role, "createdAt", "updatedAt", "ema
 7a724ce1-bd24-4fde-ac0b-15da7a34aff0	adityapandeyadp@gmail.com	Adityaadpandey	https://avatars.githubusercontent.com/u/53257475?v=4	STUDENT	2026-04-09 20:12:07.268	2026-04-09 20:12:07.268	\N
 a42e1d90-db52-43fa-825c-7030dbcda2bd	umyal06dixit@gmail.com	Umyal06dxt	https://avatars.githubusercontent.com/u/177600914?v=4	STUDENT	2026-04-09 20:33:47.106	2026-04-09 20:33:47.106	\N
 3d15975f-5433-4a6b-a1f9-9fb0832980fa	alpha16omega6@gmail.com	adp-alpha	https://avatars.githubusercontent.com/u/225555551?v=4	STUDENT	2026-04-09 21:19:43.18	2026-04-09 21:19:43.18	\N
+6466ca2d-e153-4083-9345-234afeedd6ee	adi331049@gmail.com	adi	https://lh3.googleusercontent.com/a/ACg8ocLpGiZlunkNQrkE0C4j1bl8296sPEYFowAbkchmBB3qmTCGFw=s96-c	ADMIN	2026-04-10 00:30:35.604	2026-04-10 00:30:35.604	\N
 \.
 
 
@@ -1155,5 +1162,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PZAlQtB1YDFaphxsOO6lIeMe69KHTMPtjz5NOm7XGFQGh1DoP56YdgAahkdW8NQ
+\unrestrict eVtNc9UB9nntKr3xG7AlcTuC4fVrQ2jKudMbo3jHBqvp5apBd3tC4Q4WzaScPfL
 

@@ -3,7 +3,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import {
   ArrowRight,
@@ -83,8 +82,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
-    toast.info("Google sign-in UI is ready, but the provider is not configured yet.");
-    setGoogleLoading(false);
+    await signIn("google", { callbackUrl: "/dashboard" });
   };
 
   return (
@@ -160,7 +158,7 @@ export default function LoginPage() {
                   <span className="block text-orange-400">career setup.</span>
                 </h2>
                 <p className="mt-3 max-w-md text-sm leading-5 text-zinc-400">
-                  Use GitHub now, or keep Google ready as the next sign-in option.
+                  Use GitHub or Google to continue your setup securely.
                 </p>
               </div>
 
@@ -204,7 +202,7 @@ export default function LoginPage() {
                     <p className="mt-1 text-sm text-white">Continue with Google</p>
                   </div>
                   <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
-                    Soon
+                    Live
                   </div>
                 </div>
 
@@ -218,7 +216,7 @@ export default function LoginPage() {
                   ) : (
                     <GoogleIcon className="h-5 w-5" />
                   )}
-                  <span>{googleLoading ? "Preparing Google..." : "Continue with Google"}</span>
+                  <span>{googleLoading ? "Connecting to Google..." : "Continue with Google"}</span>
                 </button>
               </div>
             </div>
