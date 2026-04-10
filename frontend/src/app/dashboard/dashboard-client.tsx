@@ -103,8 +103,8 @@ type LCData = {
 const shellClass =
   "rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(19,19,20,0.96),rgba(11,11,12,0.98))] shadow-[0_18px_70px_rgba(0,0,0,0.32)]";
 const cardClass =
-  "rounded-[1.6rem] border border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.92),rgba(15,15,18,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
-const sectionEyebrow = "text-[11px] uppercase tracking-[0.24em] text-zinc-500 font-mono";
+  "rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.92),rgba(15,15,18,0.94))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+const sectionEyebrow = "text-[10px] uppercase tracking-[0.24em] text-zinc-500 font-mono";
 
 const TYPE_STYLES: Record<string, string> = {
   BUILD: "border-orange-500/20 bg-orange-500/10 text-orange-300",
@@ -145,17 +145,19 @@ function StatCard({
   value,
   hint,
   accent,
+  className,
 }: {
   label: string;
   value: string | number;
   hint: string;
-  accent: string;
+  accent?: string;
+  className?: string;
 }) {
   return (
-    <div className={cn(cardClass, "p-4")}>
+    <div className={cn(cardClass, "p-4", className)}>
       <div className={sectionEyebrow}>{label}</div>
-      <div className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</div>
-      <div className={cn("mt-2 text-sm", accent)}>{hint}</div>
+      <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">{value}</div>
+      <div className={cn("mt-1 text-xs", accent)}>{hint}</div>
     </div>
   );
 }
@@ -163,20 +165,20 @@ function StatCard({
 function ScoreRing({ score }: { score: number }) {
   return (
     <div
-      className="relative h-28 w-28 shrink-0 rounded-full"
+      className="relative h-24 w-24 shrink-0 rounded-full"
       style={{
         background: `conic-gradient(from -90deg, rgba(249,115,22,1) 0% ${score}%, rgba(39,39,42,1) ${score}% 100%)`,
       }}
     >
       <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full border border-white/8 bg-[#121214]">
-        <div className="text-3xl font-semibold tracking-[-0.06em] text-white">{Math.round(score)}</div>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Readiness</div>
+        <div className="text-2xl font-semibold tracking-[-0.06em] text-white">{Math.round(score)}</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Score</div>
       </div>
     </div>
   );
 }
 
-function ReadinessCard({ readiness }: { readiness: Readiness | null }) {
+function ReadinessCard({ readiness, className }: { readiness: Readiness | null; className?: string }) {
   const pillars = readiness
     ? [
         { label: "DSA", value: readiness.dsa, tone: "bg-orange-400" },
@@ -187,7 +189,7 @@ function ReadinessCard({ readiness }: { readiness: Readiness | null }) {
     : [];
 
   return (
-    <section className={cn(cardClass, "lg:col-span-4")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Readiness</div>
@@ -205,12 +207,12 @@ function ReadinessCard({ readiness }: { readiness: Readiness | null }) {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
-        <div className="flex items-center gap-5">
+      <div className="mt-6 flex flex-col gap-6">
+        <div className="flex items-center gap-4">
           {readiness ? (
             <ScoreRing score={readiness.total} />
           ) : (
-            <div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-4xl text-zinc-600">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-3xl text-zinc-600">
               —
             </div>
           )}
@@ -218,46 +220,45 @@ function ReadinessCard({ readiness }: { readiness: Readiness | null }) {
           <div>
             {readiness ? (
               <>
-                <div className="text-4xl font-semibold tracking-[-0.06em] text-white">{Math.round(readiness.total)}</div>
-                <div className="mt-2 flex items-center gap-2 text-sm">
+                <div className="mt-1 flex items-center gap-2 text-xs">
                   {readiness.delta !== null ? (
                     <>
                       {readiness.delta >= 0 ? (
-                        <TrendingUp className="h-4 w-4 text-emerald-400" />
+                        <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
                       ) : (
-                        <TrendingDown className="h-4 w-4 text-rose-400" />
+                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
                       )}
                       <span className={readiness.delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
                         {readiness.delta >= 0 ? "+" : ""}
-                        {readiness.delta.toFixed(1)} this week
+                        {readiness.delta.toFixed(1)} /wk
                       </span>
                     </>
                   ) : (
-                    <span className="text-zinc-500">Fresh baseline captured</span>
+                    <span className="text-zinc-500">Fresh baseline</span>
                   )}
                 </div>
-                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
-                  <Target className="h-3.5 w-3.5" />
-                  {readiness.total >= 75 ? "On track for stronger interviews" : "Needs more prep before top roles"}
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-orange-500/20 bg-orange-500/10 px-2.5 py-0.5 text-[10px] text-orange-300">
+                  <Target className="h-3 w-3" />
+                  {readiness.total >= 75 ? "On track" : "Needs prep"}
                 </div>
               </>
             ) : (
-              <div className="max-w-xs text-sm leading-6 text-zinc-500">
-                Score appears after analysis runs.
+              <div className="text-xs text-zinc-500">
+                Score appears after analysis.
               </div>
             )}
           </div>
         </div>
 
         {pillars.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {pillars.map((pillar) => (
-              <div key={pillar.label} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="mb-3 flex items-center justify-between text-sm">
-                  <span className="text-zinc-300">{pillar.label}</span>
+              <div key={pillar.label} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="text-zinc-400">{pillar.label}</span>
                   <span className="font-medium text-white">{Math.round(pillar.value)}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+                <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
                   <div className={cn("h-full rounded-full", pillar.tone)} style={{ width: `${pillar.value}%` }} />
                 </div>
               </div>
@@ -322,9 +323,9 @@ function MissionItem({ mission }: { mission: Mission }) {
   );
 }
 
-function MissionsPanel({ missions }: { missions: Mission[] }) {
+function MissionsPanel({ missions, className }: { missions: Mission[]; className?: string }) {
   return (
-    <section className={cn(cardClass, "xl:col-span-7")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Roadmap</div>
@@ -348,9 +349,9 @@ function MissionsPanel({ missions }: { missions: Mission[] }) {
   );
 }
 
-function JobMatchesPanel({ jobMatches }: { jobMatches: JobMatch[] }) {
+function JobMatchesPanel({ jobMatches, className }: { jobMatches: JobMatch[]; className?: string }) {
   return (
-    <section className={cn(cardClass, "xl:col-span-5")}>
+    <section className={cn(cardClass, "flex flex-col", className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Jobs</div>
@@ -419,7 +420,7 @@ function JobMatchesPanel({ jobMatches }: { jobMatches: JobMatch[] }) {
   );
 }
 
-function GitHubCard({ conn }: { conn: Connection | undefined }) {
+function GitHubCard({ conn, className }: { conn: Connection | undefined; className?: string }) {
   const gh = parseGitHub(conn);
   const syncing = conn?.syncStatus === "SYNCING" || conn?.syncStatus === "PENDING";
   const topProject = gh?.repositories?.top_projects?.[0];
@@ -428,7 +429,7 @@ function GitHubCard({ conn }: { conn: Connection | undefined }) {
   const commits = gh?.repositories?.top_projects?.reduce((sum, project) => sum + (project.total_commits ?? 0), 0) ?? 0;
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>GitHub</div>
@@ -487,12 +488,12 @@ function GitHubCard({ conn }: { conn: Connection | undefined }) {
   );
 }
 
-function LeetCodeCard({ conn }: { conn: Connection | undefined }) {
+function LeetCodeCard({ conn, className }: { conn: Connection | undefined; className?: string }) {
   const lc = parseLeetCode(conn);
   const syncing = conn?.syncStatus === "SYNCING" || conn?.syncStatus === "PENDING";
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>LeetCode</div>
@@ -557,7 +558,7 @@ function LeetCodeCard({ conn }: { conn: Connection | undefined }) {
   );
 }
 
-function StreakCard({ streakDays }: { streakDays: number }) {
+function StreakCard({ streakDays, className }: { streakDays: number; className?: string }) {
   const squares = Array.from({ length: 28 }, (_, index) => {
     const fromEnd = 27 - index;
     if (fromEnd < streakDays) return "bg-orange-400";
@@ -566,7 +567,7 @@ function StreakCard({ streakDays }: { streakDays: number }) {
   });
 
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className={sectionEyebrow}>Activity</div>
@@ -598,11 +599,11 @@ function StreakCard({ streakDays }: { streakDays: number }) {
   );
 }
 
-function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
+function WeakTopicsPanel({ weakTopics, className }: { weakTopics: string[]; className?: string }) {
   const topics = (weakTopics.length ? weakTopics : Object.keys(TOPIC_META)).slice(0, 6);
 
   return (
-    <section className={cn(cardClass, "xl:col-span-5")}>
+    <section className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className={sectionEyebrow}>Focus</div>
@@ -631,13 +632,13 @@ function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
   );
 }
 
-function RecentActivityPanel({ activities }: { activities: ActivityItem[] }) {
+function RecentActivityPanel({ activities, className }: { activities: ActivityItem[]; className?: string }) {
   const items = activities.length
     ? activities
     : [{ dot: "#525252", html: "Your activity will appear here as you complete missions and interviews", time: "" }];
 
   return (
-    <section className={cn(cardClass, "xl:col-span-7")}>
+    <section className={cn(cardClass, className)}>
       <div>
         <div className={sectionEyebrow}>Feed</div>
         <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Recent activity</h3>
@@ -890,59 +891,61 @@ export function DashboardClient(initialData: Props) {
           ) : null}
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <ReadinessCard readiness={readiness} />
-          <div className="grid gap-4 sm:grid-cols-2 xl:col-span-8 2xl:grid-cols-4">
-            {heroStats.map((stat) => (
-              <StatCard
-                key={stat.label}
-                label={stat.label}
-                value={stat.value}
-                hint={stat.hint}
-                accent={stat.accent}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <MissionsPanel missions={missions} />
-          <JobMatchesPanel jobMatches={jobMatches} />
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-3">
-          <GitHubCard conn={ghConn} />
-          <LeetCodeCard conn={lcConn} />
-          <StreakCard streakDays={profile.streakDays} />
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-12">
-          <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} />
-          <RecentActivityPanel activities={recentActivity} />
-        </div>
-
-        {profile.dreamCompanies.length ? (
-          <section className={cn(cardClass, "mt-6")}>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className={sectionEyebrow}>Targets</div>
-                <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream company watchlist</h3>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
-                <Trophy className="h-4 w-4 text-orange-300" />
-                {profile.segment.replaceAll("_", " ")}
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {profile.dreamCompanies.map((company) => (
-                <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-                  {company}
-                </span>
+        <div className="mt-6 flex flex-col xl:flex-row gap-4 items-start">
+          {/* Main Content Area */}
+          <div className="flex-1 w-full space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {heroStats.map((stat) => (
+                <StatCard
+                  key={stat.label}
+                  label={stat.label}
+                  value={stat.value}
+                  hint={stat.hint}
+                  accent={stat.accent}
+                />
               ))}
             </div>
-          </section>
-        ) : null}
+
+            <MissionsPanel missions={missions} />
+            
+            <div className="grid gap-4 md:grid-cols-2">
+              <JobMatchesPanel jobMatches={jobMatches} />
+              <RecentActivityPanel activities={recentActivity} />
+            </div>
+
+            {profile.dreamCompanies.length > 0 && (
+              <section className={cn(cardClass)}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className={sectionEyebrow}>Targets</div>
+                    <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-white">Dream company watchlist</h3>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-sm text-zinc-300">
+                    <Trophy className="h-4 w-4 text-orange-300" />
+                    {profile.segment.replaceAll("_", " ")}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {profile.dreamCompanies.map((company) => (
+                    <span key={company} className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
+                      {company}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Right Sidebar Area */}
+          <div className="w-full xl:w-[340px] shrink-0 space-y-4">
+            <ReadinessCard readiness={readiness} />
+            <StreakCard streakDays={profile.streakDays} />
+            <WeakTopicsPanel weakTopics={readiness?.weakTopics ?? []} />
+            <GitHubCard conn={ghConn} />
+            <LeetCodeCard conn={lcConn} />
+          </div>
+        </div>
       </div>
     </div>
   );

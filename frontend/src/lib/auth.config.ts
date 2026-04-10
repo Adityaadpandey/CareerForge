@@ -3,13 +3,15 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import LinkedIn from "next-auth/providers/linkedin";
 
-// Edge-compatible config — NO Prisma/Node.js imports here
-export const authConfig: NextAuthConfig = {
-  trustHost: true,
-  providers: [
+const providers: NextAuthConfig["providers"] = [];
+const linkedInScope =
+  process.env.AUTH_LINKEDIN_SCOPE?.trim() || "openid profile email";
+
+if (process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
+  providers.push(
     GitHub({
-      clientId: process.env.AUTH_GITHUB_ID!,
-      clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      clientId: process.env.AUTH_GITHUB_ID,
+      clientSecret: process.env.AUTH_GITHUB_SECRET,
       issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking: true,
       // Store login (username) as name so session.user.name = "adityaadpandey", not "Aditya Pandey"
@@ -22,20 +24,36 @@ export const authConfig: NextAuthConfig = {
         };
       },
     }),
+  );
+}
+
+if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+  providers.push(
     Google({
-      clientId: process.env.AUTH_GOOGLE_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
       allowDangerousEmailAccountLinking: true,
     }),
+  );
+}
+
+if (process.env.AUTH_LINKEDIN_ID && process.env.AUTH_LINKEDIN_SECRET) {
+  providers.push(
     LinkedIn({
-      clientId: process.env.AUTH_LINKEDIN_ID!,
-      clientSecret: process.env.AUTH_LINKEDIN_SECRET!,
+      clientId: process.env.AUTH_LINKEDIN_ID,
+      clientSecret: process.env.AUTH_LINKEDIN_SECRET,
       authorization: {
-        params: { scope: "openid profile email" },
+        params: { scope: linkedInScope },
       },
       allowDangerousEmailAccountLinking: true,
     }),
-  ],
+  );
+}
+
+// Edge-compatible config — NO Prisma/Node.js imports here
+export const authConfig: NextAuthConfig = {
+  trustHost: true,
+  providers,
   pages: {
     signIn: "/login",
   },
