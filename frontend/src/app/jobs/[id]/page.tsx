@@ -7,6 +7,7 @@ import axios from "axios";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/shared/sidebar";
+import type { CvData, CoverLetterData } from "@/components/pdf/types";
 import {
   ArrowLeft,
   MapPin,
@@ -19,7 +20,6 @@ import {
   XCircle,
   Loader2,
   X,
-  Copy,
   Download,
   Code2,
   Users,
@@ -67,6 +67,26 @@ const INTERVIEW_TYPES: { type: InterviewType; label: string; icon: React.Element
   { type: "MIXED", label: "Mixed", icon: Zap },
 ];
 
+// ── Helpers ──────────────────────────────────────────────────
+
+function parseLegacy(raw: string): string | null {
+  try {
+    JSON.parse(raw);
+    return null;
+  } catch {
+    return raw;
+  }
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Sub-components ───────────────────────────────────────────
 
 function MatchBadge({ score }: { score: number | null }) {
@@ -88,44 +108,166 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`bg-zinc-800/60 rounded animate-pulse ${className ?? ""}`} />;
 }
 
+function PdfSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest pl-1.5 border-l-2 border-amber-400 mb-2">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function SkillRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 text-xs mb-1">
+      <span className="font-bold text-zinc-200 w-24 shrink-0">{label}</span>
+      <span className="text-zinc-400">{value}</span>
+    </div>
+  );
+}
+
+function CvPreview({ data }: { data: CvData }) {
+  const contact = [data.email, data.phone, data.linkedin, data.github]
+    .filter(Boolean)
+    .join("  ·  ");
+  return (
+    <div className="space-y-6 font-mono">
+      <div>
+        <p className="text-2xl font-bold text-white">{data.name}</p>
+        <p className="text-xs text-zinc-400 mt-1">{contact}</p>
+        <div className="border-b border-amber-500 mt-3" />
+      </div>
+      <PdfSection label="Summary">
+        <p className="text-sm text-zinc-300 leading-relaxed">{data.summary}</p>
+      </PdfSection>
+      <PdfSection label="Skills">
+        {data.skills.languages.length > 0 && (
+          <SkillRow label="Languages" value={data.skills.languages.join(", ")} />
+        )}
+        {data.skills.frameworks.length > 0 && (
+          <SkillRow label="Frameworks" value={data.skills.frameworks.join(", ")} />
+        )}
+        {data.skills.tools.length > 0 && (
+          <SkillRow label="Tools" value={data.skills.tools.join(", ")} />
+        )}
+      </PdfSection>
+      <PdfSection label="Projects">
+        {data.projects.map((p, i) => (
+          <div key={i} className="mb-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-bold text-white">{p.name}</span>
+              <span className="text-xs text-zinc-400">{p.tech.join(" · ")}</span>
+            </div>
+            <ul className="mt-1 space-y-0.5">
+              {p.bullets.map((b, j) => (
+                <li key={j} className="text-xs text-zinc-300 pl-3">• {b}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </PdfSection>
+      <PdfSection label="Education">
+        <p className="text-sm font-bold text-white">{data.education.degree}</p>
+        <p className="text-xs text-zinc-400">
+          {data.education.institution} · Expected {data.education.year}
+        </p>
+      </PdfSection>
+    </div>
+  );
+}
+
+function ClPreview({ data }: { data: CoverLetterData }) {
+  const contact = [data.email, data.phone].filter(Boolean).join("  ·  ");
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return (
+    <div className="space-y-5 font-mono">
+      <div>
+        <p className="text-xl font-bold text-white">{data.name}</p>
+        <p className="text-xs text-zinc-400 mt-1">{contact}</p>
+        <div className="border-b border-amber-500 mt-3" />
+      </div>
+      <p className="text-xs text-zinc-500">{today}</p>
+      <p className="text-sm font-bold text-zinc-200">{data.greeting}</p>
+      {data.paragraphs.map((p, i) => (
+        <p key={i} className="text-sm text-zinc-300 leading-relaxed">{p}</p>
+      ))}
+      <div>
+        <p className="text-sm text-zinc-300">{data.closing}</p>
+        <p className="text-sm font-bold text-white mt-4">{data.name}</p>
+      </div>
+    </div>
+  );
+}
+
 function DocumentModal({
   title,
-  content,
+  kind,
+  cvData,
+  clData,
+  company,
+  legacyText,
   onClose,
 }: {
   title: string;
-  content: string;
+  kind: "cv" | "cl";
+  cvData?: CvData;
+  clData?: CoverLetterData;
+  company: string;
+  legacyText?: string;
   onClose: () => void;
 }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const slug = company.toLowerCase().replace(/\s+/g, "-");
+      if (kind === "cv" && cvData) {
+        const { pdf } = await import("@react-pdf/renderer");
+        const { CVDocument } = await import("@/components/pdf/cv-document");
+        const blob = await pdf(<CVDocument data={cvData} />).toBlob();
+        triggerDownload(blob, `cv-${slug}.pdf`);
+      } else if (kind === "cl" && clData) {
+        const { pdf } = await import("@react-pdf/renderer");
+        const { CoverLetterDocument } = await import(
+          "@/components/pdf/cover-letter-document"
+        );
+        const blob = await pdf(<CoverLetterDocument data={clData} />).toBlob();
+        triggerDownload(blob, `cover-letter-${slug}.pdf`);
+      }
+    } catch {
+      toast.error("Failed to create PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const canDownload = !legacyText && ((kind === "cv" && !!cvData) || (kind === "cl" && !!clData));
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
           <h2 className="text-sm font-medium text-white">{title}</h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(content)
-                  .then(() => toast.success("Copied!"))
-              }
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 text-zinc-400 hover:text-white text-xs rounded-lg transition-colors"
+              onClick={handleDownload}
+              disabled={downloading || !canDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Copy className="w-3 h-3" /> Copy
-            </button>
-            <button
-              onClick={() => {
-                const blob = new Blob([content], { type: "text/markdown" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${title.toLowerCase().replace(/ /g, "-")}.md`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 text-zinc-400 hover:text-white text-xs rounded-lg transition-colors"
-            >
-              <Download className="w-3 h-3" /> Download
+              {downloading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Download className="w-3 h-3" />
+              )}
+              Download PDF
             </button>
             <button
               onClick={onClose}
@@ -135,10 +277,18 @@ function DocumentModal({
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          <pre className="text-sm text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">
-            {content}
-          </pre>
+
+        {/* Modal body */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          {legacyText ? (
+            <pre className="text-sm text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">
+              {legacyText}
+            </pre>
+          ) : kind === "cv" && cvData ? (
+            <CvPreview data={cvData} />
+          ) : kind === "cl" && clData ? (
+            <ClPreview data={clData} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -155,6 +305,8 @@ export default function JobDetailPage() {
   const [cvModal, setCvModal] = useState(false);
   const [clModal, setClModal] = useState(false);
   const [interviewType, setInterviewType] = useState<InterviewType>("TECHNICAL");
+  const [cvData, setCvData] = useState<CvData | null>(null);
+  const [clData, setClData] = useState<CoverLetterData | null>(null);
 
   // ── Job data ──────────────────────────────────────────────
   const { data: job, isLoading: jobLoading } = useQuery<JobDetail>({
@@ -196,9 +348,10 @@ export default function JobDetailPage() {
   const cvMutation = useMutation({
     mutationFn: () =>
       axios
-        .post<{ cv_markdown: string }>(`/api/jobs/${jobId}/generate-cv`)
+        .post<{ cv: CvData }>(`/api/jobs/${jobId}/generate-cv`)
         .then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setCvData(data.cv);
       toast.success("CV generated!");
       setCvModal(true);
       qc.invalidateQueries({ queryKey: ["job", jobId] });
@@ -210,9 +363,12 @@ export default function JobDetailPage() {
   const clMutation = useMutation({
     mutationFn: () =>
       axios
-        .post<{ cover_letter: string }>(`/api/jobs/${jobId}/generate-cover-letter`)
+        .post<{ cover_letter: CoverLetterData }>(
+          `/api/jobs/${jobId}/generate-cover-letter`
+        )
         .then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setClData(data.cover_letter);
       toast.success("Cover letter generated!");
       setClModal(true);
       qc.invalidateQueries({ queryKey: ["job", jobId] });
@@ -235,9 +391,25 @@ export default function JobDetailPage() {
     onError: () => toast.error("Failed to start interview"),
   });
 
-  // Use freshly generated content if available, else fall back to stored
-  const cvContent = cvMutation.data?.cv_markdown ?? job?.cvGenerated ?? "";
-  const clContent = clMutation.data?.cover_letter ?? job?.coverLetter ?? "";
+  // Resolve CV/CL data: freshly generated > stored JSON > legacy markdown
+  const storedCv = job?.cvGenerated
+    ? (() => { try { return JSON.parse(job.cvGenerated) as CvData; } catch { return null; } })()
+    : null;
+  const storedCl = job?.coverLetter
+    ? (() => { try { return JSON.parse(job.coverLetter) as CoverLetterData; } catch { return null; } })()
+    : null;
+
+  const effectiveCvData = cvData ?? storedCv;
+  const effectiveClData = clData ?? storedCl;
+
+  const legacyCvText =
+    !effectiveCvData && job?.cvGenerated
+      ? parseLegacy(job.cvGenerated) ?? undefined
+      : undefined;
+  const legacyClText =
+    !effectiveClData && job?.coverLetter
+      ? parseLegacy(job.coverLetter) ?? undefined
+      : undefined;
 
   // ── Loading state ─────────────────────────────────────────
   if (jobLoading) {
@@ -353,7 +525,7 @@ export default function JobDetailPage() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => {
-              if (cvContent) { setCvModal(true); return; }
+              if (effectiveCvData || legacyCvText) { setCvModal(true); return; }
               cvMutation.mutate();
             }}
             disabled={cvMutation.isPending}
@@ -364,11 +536,11 @@ export default function JobDetailPage() {
             ) : (
               <FileText className="w-4 h-4" />
             )}
-            {cvContent ? "Preview CV" : "Generate CV"}
+            {effectiveCvData || legacyCvText ? "Preview CV" : "Generate CV"}
           </button>
           <button
             onClick={() => {
-              if (clContent) { setClModal(true); return; }
+              if (effectiveClData || legacyClText) { setClModal(true); return; }
               clMutation.mutate();
             }}
             disabled={clMutation.isPending}
@@ -379,7 +551,7 @@ export default function JobDetailPage() {
             ) : (
               <Mail className="w-4 h-4" />
             )}
-            {clContent ? "Preview Cover Letter" : "Generate Cover Letter"}
+            {effectiveClData || legacyClText ? "Preview Cover Letter" : "Generate Cover Letter"}
           </button>
         </div>
 
@@ -531,7 +703,6 @@ export default function JobDetailPage() {
                 </p>
               </div>
             </div>
-
             <div className="flex flex-wrap gap-2 mb-5">
               {INTERVIEW_TYPES.map(({ type, label, icon: Icon }) => (
                 <button
@@ -548,7 +719,6 @@ export default function JobDetailPage() {
                 </button>
               ))}
             </div>
-
             <button
               onClick={() => interviewMutation.mutate()}
               disabled={interviewMutation.isPending}
@@ -567,17 +737,23 @@ export default function JobDetailPage() {
       </main>
 
       {/* ── Document modals ──────────────────────────────────── */}
-      {cvModal && cvContent && (
+      {cvModal && (
         <DocumentModal
           title="Generated CV"
-          content={cvContent}
+          kind="cv"
+          cvData={effectiveCvData ?? undefined}
+          company={job.company}
+          legacyText={legacyCvText}
           onClose={() => setCvModal(false)}
         />
       )}
-      {clModal && clContent && (
+      {clModal && (
         <DocumentModal
           title="Cover Letter"
-          content={clContent}
+          kind="cl"
+          clData={effectiveClData ?? undefined}
+          company={job.company}
+          legacyText={legacyClText}
           onClose={() => setClModal(false)}
         />
       )}
