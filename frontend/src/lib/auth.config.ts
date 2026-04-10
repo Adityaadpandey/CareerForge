@@ -30,64 +30,11 @@ export const authConfig: NextAuthConfig = {
     LinkedIn({
       clientId: process.env.AUTH_LINKEDIN_ID!,
       clientSecret: process.env.AUTH_LINKEDIN_SECRET!,
-      type: "oauth",
-      issuer: "https://www.linkedin.com",
-      checks: ["state"],
-      client: { token_endpoint_auth_method: "client_secret_post" },
       authorization: {
-        url: "https://www.linkedin.com/oauth/v2/authorization",
-        params: { scope: "r_liteprofile r_emailaddress" },
-      },
-      token: "https://www.linkedin.com/oauth/v2/accessToken",
-      userinfo: {
-        async request({ tokens }: { tokens: { access_token?: string } }) {
-          const headers = { Authorization: `Bearer ${tokens.access_token}` };
-          const [meRes, emailRes] = await Promise.all([
-            fetch(
-              "https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))",
-              { headers },
-            ),
-            fetch(
-              "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
-              { headers },
-            ),
-          ]);
-
-          const me = meRes.ok
-            ? ((await meRes.json()) as Record<string, unknown>)
-            : {};
-          const emailJson = emailRes.ok
-            ? ((await emailRes.json()) as {
-                elements?: Array<{ "handle~"?: { emailAddress?: string } }>;
-              })
-            : {};
-
-          const first = (me.localizedFirstName as string | undefined) ?? "";
-          const last = (me.localizedLastName as string | undefined) ?? "";
-          const display = [first, last].filter(Boolean).join(" ").trim();
-          const image = (
-            me.profilePicture as
-              | {
-                  "displayImage~"?: {
-                    elements?: Array<{
-                      identifiers?: Array<{ identifier?: string }>;
-                    }>;
-                  };
-                }
-              | undefined
-          )?.["displayImage~"]?.elements?.at(-1)?.identifiers?.[0]?.identifier;
-          const email = emailJson.elements?.[0]?.["handle~"]?.emailAddress;
-
-          return {
-            id: (me.id as string) ?? crypto.randomUUID(),
-            name: display || undefined,
-            email,
-            image,
-          };
-        },
+        params: { scope: "openid profile email" },
       },
       allowDangerousEmailAccountLinking: true,
-    } as any),
+    }),
   ],
   pages: {
     signIn: "/login",
@@ -96,7 +43,6 @@ export const authConfig: NextAuthConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isAuthPage = nextUrl.pathname.startsWith("/login");
-      const isOnboarding = nextUrl.pathname.startsWith("/onboarding");
       const isApi = nextUrl.pathname.startsWith("/api");
       const isPublic = nextUrl.pathname === "/";
 

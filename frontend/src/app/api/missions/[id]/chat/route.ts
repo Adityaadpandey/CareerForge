@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -14,7 +14,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { messages } = (await req.json()) as { messages: {role: "user" | "assistant", content: string}[] };
+  const { messages } = (await req.json()) as {
+    messages: { role: "user" | "assistant"; content: string }[];
+  };
 
   if (!messages || messages.length === 0) {
     return new Response("No messages provided", { status: 400 });
@@ -27,12 +29,12 @@ export async function POST(
       studentProfile: {
         include: {
           readinessScores: {
-             orderBy: { createdAt: 'desc' },
-             take: 1
-          }
-        }
-      }
-    }
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
   });
 
   if (!mission) {
@@ -47,8 +49,8 @@ export async function POST(
   const profile = mission.studentProfile;
   const latestScore = profile.readinessScores?.[0];
   const gapAnalysisString = latestScore?.gapAnalysis
-     ? JSON.stringify(latestScore.gapAnalysis)
-     : "No specific gap analysis available.";
+    ? JSON.stringify(latestScore.gapAnalysis)
+    : "No specific gap analysis available.";
 
   const systemMessage = `
 You are an elite Staff Engineer acting as a personal technical mentor for a developer.
@@ -70,14 +72,18 @@ ${gapAnalysisString}
 YOUR INSTRUCTIONS:
 1. You are here to mentor them to successfully complete this specific mission.
 2. If they ask how to start, guide them based on their known skill gaps. Provide hints, architectures, or step-by-step logic.
-3. NEVER write the complete final code for the mission for them. You want them to learn. 
+3. NEVER write the complete final code for the mission for them. You want them to learn.
 4. Provide highly specific code snippets to explain concepts or unblock them, but leave the integration to them.
-5. Be encouraging but professional (like a senior engineer). 
+5. Be encouraging but professional (like a senior engineer).
 6. Keep your answers concise, structured, and use Markdown for code blocks.
 `;
 
+  const customOpenai = createOpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
   const result = streamText({
-    model: openai("gpt-4o-mini"),
+    model: customOpenai("gpt-4o-mini"),
     system: systemMessage,
     messages,
   });
