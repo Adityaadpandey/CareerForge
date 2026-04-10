@@ -3,7 +3,15 @@ import json
 import httpx
 from fastapi import APIRouter
 from openai import AsyncOpenAI
-from app.models.schemas import JobsFetchRequest, JobsApplyRequest, JobsMatchRequest
+from app.models.schemas import (
+    JobsFetchRequest,
+    JobsApplyRequest,
+    JobsMatchRequest,
+    JobsGenerateCvRequest,
+    JobsGenerateCoverLetterRequest,
+    JobsDescribeRequest,
+    JobsSkillAnalysisRequest,
+)
 from app.db.client import get_pool
 from app.config import settings
 
@@ -191,3 +199,259 @@ async def match_jobs(req: JobsMatchRequest):
         )
 
     return {"status": "done", "matched": len(req.job_ids)}
+
+
+@router.post("/generate-cv")
+async def generate_cv(req: JobsGenerateCvRequest):
+    """Generate a structured ATS-friendly CV as JSON."""
+    pool = await get_pool()
+
+    profile = await pool.fetchrow(
+        """
+        SELECT sp."targetRole", sp."githubUsername", sp."linkedinUrl",
+               sp."graduationYear", sp."department",
+               u.name AS student_name, u.email AS student_email,
+               pc."parsedData" AS github_data,
+               lc."parsedData" AS lc_data,
+               uni.name AS university_name
+        FROM "StudentProfile" sp
+        LEFT JOIN "User" u ON u.id = sp."userId"
+        LEFT JOIN "PlatformConnection" pc
+               ON pc."studentProfileId" = sp.id AND pc.platform = 'GITHUB'
+        LEFT JOIN "PlatformConnection" lc
+               ON lc."studentProfileId" = sp.id AND lc.platform = 'LEETCODE'
+        LEFT JOIN "University" uni ON uni.id = sp."universityId"
+        WHERE sp.id = $1
+        """,
+        req.student_profile_id,
+    )
+
+    job = await pool.fetchrow(
+        'SELECT title, company, "requirementsText", "requirementsTags" FROM "Job" WHERE id = $1',
+        req.job_id,
+    )
+
+    if not profile or not job:
+        return {"status": "error", "message": "Not found"}
+
+    gh = json.loads(profile["github_data"] or "{}")
+    lc = json.loads(profile["lc_data"] or "{}")
+    projects = gh.get("top_projects", [])
+    languages = list(gh.get("primary_languages", {}).keys())
+    lc_solved = lc.get("total_solved", 0)
+
+    prompt = f"""
+You are generating a structured CV for a student. Return ONLY valid JSON with no extra text.
+
+Required JSON schema:
+{{
+  "name": "student full name",
+  "email": "student email",
+  "phone": "+91 XXXXXXXXXX",
+  "linkedin": "linkedin profile url",
+  "github": "github profile url",
+  "summary": "exactly 2 sentences, ATS-optimized, mirror job description language",
+  "skills": {{
+    "languages": ["list of programming languages"],
+    "frameworks": ["list of frameworks and libraries"],
+    "tools": ["list of tools, databases, and platforms"]
+  }},
+  "projects": [
+    {{
+      "name": "project name",
+      "tech": ["tech1", "tech2"],
+      "bullets": ["action verb + specific achievement + measurable outcome"]
+    }}
+  ],
+  "education": {{
+    "degree": "degree name",
+    "institution": "university name",
+    "year": "graduation year"
+  }}
+}}
+
+Fill in known values:
+- name: {profile['student_name'] or 'Your Name'}
+- email: {profile['student_email'] or 'email@example.com'}
+- linkedin: {profile['linkedinUrl'] or 'linkedin.com/in/username'}
+- github: github.com/{profile['githubUsername'] or 'username'}
+- degree: {profile['department'] or 'B.Tech Computer Science'}
+- institution: {profile['university_name'] or 'University Name'}
+- graduation year: {profile['graduationYear'] or '2026'}
+
+Job: {job['title']} at {job['company']}
+Job requirements: {job['requirementsText'][:800]}
+Required skills: {job['requirementsTags']}
+Student top projects: {json.dumps(projects[:3])}
+Known programming languages: {languages}
+LeetCode problems solved: {lc_solved}
+
+Rules:
+- Include 3 projects maximum, rewrite bullets to match JD keywords
+- Each project needs 2-3 bullets starting with strong action verbs
+- Skills grouped by category, no duplicates across groups
+- Summary must mirror JD language and mention the target role
+- Return ONLY the JSON object, no markdown fences, no explanation
+"""
+
+    res = await get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    cv_data = json.loads(res.choices[0].message.content)
+    return cv_data
+
+
+@router.post("/generate-cover-letter")
+async def generate_cover_letter(req: JobsGenerateCoverLetterRequest):
+    """Generate a structured cover letter as JSON."""
+    pool = await get_pool()
+
+    profile = await pool.fetchrow(
+        """
+        SELECT sp."targetRole",
+               u.name AS student_name, u.email AS student_email,
+               pc."parsedData" AS github_data
+        FROM "StudentProfile" sp
+        LEFT JOIN "User" u ON u.id = sp."userId"
+        LEFT JOIN "PlatformConnection" pc
+               ON pc."studentProfileId" = sp.id AND pc.platform = 'GITHUB'
+        WHERE sp.id = $1
+        """,
+        req.student_profile_id,
+    )
+
+    job = await pool.fetchrow(
+        'SELECT title, company, "requirementsText" FROM "Job" WHERE id = $1',
+        req.job_id,
+    )
+
+    if not profile or not job:
+        return {"status": "error", "message": "Not found"}
+
+    gh = json.loads(profile["github_data"] or "{}")
+    projects = gh.get("top_projects", [])
+
+    prompt = f"""
+You are generating a cover letter for a student. Return ONLY valid JSON with no extra text.
+
+Required JSON schema:
+{{
+  "name": "student full name",
+  "email": "student email",
+  "phone": "+91 XXXXXXXXXX",
+  "company": "{job['company']}",
+  "role": "{job['title']}",
+  "greeting": "Dear Hiring Manager,",
+  "paragraphs": [
+    "Hook paragraph (2-3 sentences): why THIS company and THIS role",
+    "Experience paragraph (3-4 sentences): 2 specific projects with measurable outcomes",
+    "Why company paragraph (2-3 sentences): research-backed, under 70 words"
+  ],
+  "closing": "Sincerely,"
+}}
+
+Fill in known values:
+- name: {profile['student_name'] or 'Your Name'}
+- email: {profile['student_email'] or 'email@example.com'}
+
+Job: {job['title']} at {job['company']}
+Job requirements: {job['requirementsText'][:600]}
+Student projects: {json.dumps(projects[:2])}
+
+Rules:
+- Total word count under 280 words (all 3 paragraphs combined)
+- Professional but genuine tone, avoid clichés like "I am excited to apply"
+- Each paragraph is a single string with no internal line breaks
+- Return ONLY the JSON object, no markdown fences, no explanation
+"""
+
+    res = await get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    cl_data = json.loads(res.choices[0].message.content)
+    return cl_data
+
+
+@router.post("/describe")
+async def describe_job(req: JobsDescribeRequest):
+    """Extract clean job description text from raw HTML."""
+    html_snippet = req.html[:8000]
+
+    prompt = f"""Extract only the job description text from the following HTML page.
+Remove all navigation, headers, footers, ads, cookie notices, and boilerplate.
+Return only the actual job posting content: role overview, responsibilities, requirements, and qualifications.
+Keep the text clean and readable. Do not add commentary or formatting — just the extracted text.
+
+HTML:
+{html_snippet}"""
+
+    res = await get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return {"description": res.choices[0].message.content.strip()}
+
+
+@router.post("/skill-analysis")
+async def skill_analysis(req: JobsSkillAnalysisRequest):
+    """Analyse student skills against job requirements."""
+    student_skills: list[str] = []
+    for conn in req.platform_data:
+        data = conn.get("data") or {}
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception:
+                data = {}
+        platform = conn.get("platform", "")
+        if platform == "GITHUB":
+            langs = list((data.get("primary_languages") or {}).keys())
+            student_skills.extend(langs)
+            for proj in (data.get("top_projects") or [])[:5]:
+                student_skills.extend(proj.get("topics") or [])
+        elif platform == "LEETCODE":
+            if data.get("total_solved", 0) > 100:
+                student_skills.append("Data Structures & Algorithms")
+        elif platform == "LINKEDIN":
+            student_skills.extend(data.get("skills") or [])
+
+    student_skills = list(dict.fromkeys(s.strip() for s in student_skills if s.strip()))
+
+    weak_topics: list[str] = []
+    if req.gap_analysis:
+        weak_topics = req.gap_analysis.get("weak_topics") or []
+
+    prompt = f"""You are a career advisor analysing a student's skills against job requirements.
+Return ONLY valid JSON with no extra text.
+
+Required JSON schema:
+{{
+  "matched": ["skills from requirement_tags that the student has"],
+  "gaps": ["skills from requirement_tags that the student is missing"],
+  "suggestions": ["1-2 sentence actionable suggestion for each gap skill, same order as gaps"]
+}}
+
+Job required skills: {req.requirement_tags}
+Student known skills: {student_skills}
+Student weak topics: {weak_topics}
+
+Rules:
+- matched: only skills appearing in BOTH requirement_tags AND student skills (case-insensitive)
+- gaps: requirement_tags skills the student does not have
+- suggestions: one entry per gap skill, same order, concrete and actionable
+- Return ONLY the JSON object, no markdown fences"""
+
+    res = await get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    return json.loads(res.choices[0].message.content)
