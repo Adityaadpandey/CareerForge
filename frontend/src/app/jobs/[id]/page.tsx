@@ -46,8 +46,6 @@ type JobDetail = {
   salaryMax: number | null;
   matchScore: number | null;
   applicationStatus: string | null;
-  cvGenerated: string | null;
-  coverLetter: string | null;
   isSaved: boolean;
 };
 
@@ -68,15 +66,6 @@ const INTERVIEW_TYPES: { type: InterviewType; label: string; icon: React.Element
 ];
 
 // ── Helpers ──────────────────────────────────────────────────
-
-function parseLegacy(raw: string): string | null {
-  try {
-    JSON.parse(raw);
-    return null;
-  } catch {
-    return raw;
-  }
-}
 
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -391,25 +380,10 @@ export default function JobDetailPage() {
     onError: () => toast.error("Failed to start interview"),
   });
 
-  // Resolve CV/CL data: freshly generated > stored JSON > legacy markdown
-  const storedCv = job?.cvGenerated
-    ? (() => { try { return JSON.parse(job.cvGenerated) as CvData; } catch { return null; } })()
-    : null;
-  const storedCl = job?.coverLetter
-    ? (() => { try { return JSON.parse(job.coverLetter) as CoverLetterData; } catch { return null; } })()
-    : null;
-
-  const effectiveCvData = cvData ?? storedCv;
-  const effectiveClData = clData ?? storedCl;
-
-  const legacyCvText =
-    !effectiveCvData && job?.cvGenerated
-      ? parseLegacy(job.cvGenerated) ?? undefined
-      : undefined;
-  const legacyClText =
-    !effectiveClData && job?.coverLetter
-      ? parseLegacy(job.coverLetter) ?? undefined
-      : undefined;
+  const effectiveCvData = cvData;
+  const effectiveClData = clData;
+  const legacyCvText = undefined;
+  const legacyClText = undefined;
 
   // ── Loading state ─────────────────────────────────────────
   if (jobLoading) {
