@@ -21,6 +21,11 @@ import {
   XCircle,
   Loader2,
   Upload,
+  Plus,
+  Pencil,
+  Trash2,
+  FolderGit2,
+  X,
 } from "lucide-react";
 
 const profileSchema = z.object({
@@ -37,6 +42,15 @@ const profileSchema = z.object({
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
+
+type Project = {
+  id: string;
+  name: string;
+  description: string;
+  techStack: string[];
+  liveUrl: string | null;
+  repoUrl: string | null;
+};
 
 type Profile = {
   department: string | null;
@@ -129,10 +143,87 @@ export default function ProfilePage() {
   const [showLinkedinInput, setShowLinkedinInput] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
+  // Project state
+  const [projectModal, setProjectModal] = useState<"add" | Project | null>(null);
+  const [projectForm, setProjectForm] = useState({ name: "", description: "", techStack: "", liveUrl: "", repoUrl: "" });
+
   const { data: profile, isLoading } = useQuery<Profile>({
     queryKey: ["profile"],
     queryFn: () => axios.get<Profile>("/api/profile").then((r) => r.data),
   });
+
+  const { data: projectsData, isLoading: projectsLoading } = useQuery<{ projects: Project[] }>({
+    queryKey: ["projects"],
+    queryFn: () => axios.get("/api/profile/projects").then((r) => r.data),
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: (data: typeof projectForm) =>
+      axios.post("/api/profile/projects", {
+        name: data.name,
+        description: data.description,
+        techStack: data.techStack.split(",").map((s) => s.trim()).filter(Boolean),
+        liveUrl: data.liveUrl || null,
+        repoUrl: data.repoUrl || null,
+      }),
+    onSuccess: () => {
+      toast.success("Project added");
+      setProjectModal(null);
+      setProjectForm({ name: "", description: "", techStack: "", liveUrl: "", repoUrl: "" });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => toast.error("Failed to add project"),
+  });
+
+  const updateProjectMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: typeof projectForm }) =>
+      axios.patch(`/api/profile/projects/${id}`, {
+        name: data.name,
+        description: data.description,
+        techStack: data.techStack.split(",").map((s) => s.trim()).filter(Boolean),
+        liveUrl: data.liveUrl || null,
+        repoUrl: data.repoUrl || null,
+      }),
+    onSuccess: () => {
+      toast.success("Project updated");
+      setProjectModal(null);
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => toast.error("Failed to update project"),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/profile/projects/${id}`),
+    onSuccess: () => {
+      toast.success("Project removed");
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => toast.error("Failed to delete project"),
+  });
+
+  const openAddProject = () => {
+    setProjectForm({ name: "", description: "", techStack: "", liveUrl: "", repoUrl: "" });
+    setProjectModal("add");
+  };
+
+  const openEditProject = (p: Project) => {
+    setProjectForm({
+      name: p.name,
+      description: p.description,
+      techStack: p.techStack.join(", "),
+      liveUrl: p.liveUrl ?? "",
+      repoUrl: p.repoUrl ?? "",
+    });
+    setProjectModal(p);
+  };
+
+  const submitProjectForm = () => {
+    if (projectModal === "add") {
+      createProjectMutation.mutate(projectForm);
+    } else if (projectModal && typeof projectModal === "object") {
+      updateProjectMutation.mutate({ id: projectModal.id, data: projectForm });
+    }
+  };
 
   const { data: linkedinStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["linkedin-status"],
@@ -256,7 +347,7 @@ export default function ProfilePage() {
   return (
     <div className="flex min-h-screen bg-[#0a0a0a]">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-8 max-w-3xl">
+      <main className="flex-1 p-6 md:p-8 max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -501,6 +592,76 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* Projects */}
+        <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6 mb-4">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4 text-amber-400" />
+              <h2 className="text-sm font-medium text-white">My Projects</h2>
+              <span className="text-[10px] font-mono text-zinc-600 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded-full">
+                used in CV generation
+              </span>
+            </div>
+            <button
+              onClick={openAddProject}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 text-xs font-medium rounded-lg transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Project
+            </button>
+          </div>
+
+          {projectsLoading ? (
+            <div className="space-y-3">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="h-20 bg-zinc-800/60 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : !projectsData?.projects.length ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-zinc-800 rounded-xl">
+              <FolderGit2 className="w-8 h-8 text-zinc-700 mb-2" />
+              <p className="text-sm text-zinc-500 mb-1">No projects yet</p>
+              <p className="text-xs text-zinc-600">Add your projects — the AI picks the most relevant ones when generating your CV</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {projectsData.projects.map((p) => (
+                <div key={p.id} className="group bg-zinc-800/40 border border-zinc-700/40 rounded-xl p-4 hover:border-zinc-600/60 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white mb-1">{p.name}</p>
+                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{p.description}</p>
+                      {p.techStack.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {p.techStack.map((t) => (
+                            <span key={t} className="px-1.5 py-0.5 rounded bg-zinc-700/60 text-zinc-400 text-[10px] font-mono">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => openEditProject(p)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-700 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteProjectMutation.mutate(p.id)}
+                        disabled={deleteProjectMutation.isPending}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Platform connections */}
         <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-6">
           <h2 className="text-sm font-medium text-white mb-4">
@@ -639,6 +800,81 @@ export default function ProfilePage() {
           })}
         </div>
       </main>
+
+      {/* Project modal */}
+      {projectModal !== null && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <h2 className="text-sm font-medium text-white">
+                {projectModal === "add" ? "Add Project" : "Edit Project"}
+              </h2>
+              <button onClick={() => setProjectModal(null)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">Project Name *</label>
+                <input
+                  value={projectForm.name}
+                  onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
+                  placeholder="e.g. CareerForge"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">Description *</label>
+                <textarea
+                  value={projectForm.description}
+                  onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={4}
+                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none resize-none"
+                  placeholder="Describe what the project does, your role, and impact..."
+                />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">Tech Stack (comma-separated)</label>
+                <input
+                  value={projectForm.techStack}
+                  onChange={(e) => setProjectForm((f) => ({ ...f, techStack: e.target.value }))}
+                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
+                  placeholder="React, Next.js, PostgreSQL, Prisma"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">Live URL</label>
+                  <input
+                    value={projectForm.liveUrl}
+                    onChange={(e) => setProjectForm((f) => ({ ...f, liveUrl: e.target.value }))}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
+                    placeholder="https://..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 font-mono uppercase tracking-wider block mb-1">Repo URL</label>
+                  <input
+                    value={projectForm.repoUrl}
+                    onChange={(e) => setProjectForm((f) => ({ ...f, repoUrl: e.target.value }))}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none"
+                    placeholder="https://github.com/..."
+                  />
+                </div>
+              </div>
+              <button
+                onClick={submitProjectForm}
+                disabled={!projectForm.name.trim() || !projectForm.description.trim() || createProjectMutation.isPending || updateProjectMutation.isPending}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {createProjectMutation.isPending || updateProjectMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : projectModal === "add" ? "Add Project" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

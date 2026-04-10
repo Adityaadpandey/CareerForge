@@ -99,6 +99,7 @@ model StudentProfile {
   interviewSessions   InterviewSession[]
   applications        Application[]
   savedJobs           SavedJob[]
+  projects            Project[]
 }
 
 enum Segment {
@@ -107,6 +108,22 @@ enum Segment {
   CAPABLE
   AT_RISK
   CRITICAL
+}
+
+// ─── PROJECTS ────────────────────────────────────────────────
+
+model Project {
+  id               String   @id @default(cuid())
+  studentProfileId String
+  name             String
+  description      String   @db.Text
+  techStack        String[]
+  liveUrl          String?
+  repoUrl          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
 }
 
 // ─── READINESS SCORE ─────────────────────────────────────────

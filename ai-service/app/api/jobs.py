@@ -236,9 +236,31 @@ async def generate_cv(req: JobsGenerateCvRequest):
 
     gh = json.loads(profile["github_data"] or "{}")
     lc = json.loads(profile["lc_data"] or "{}")
-    projects = gh.get("top_projects", [])
+    github_projects = gh.get("top_projects", [])
     languages = list(gh.get("primary_languages", {}).keys())
     lc_solved = lc.get("total_solved", 0)
+
+    # Fetch manually added projects from Project table
+    manual_projects = await pool.fetch(
+        'SELECT name, description, "techStack", "liveUrl", "repoUrl" FROM "Project" WHERE "studentProfileId" = $1 ORDER BY "createdAt" DESC',
+        req.student_profile_id,
+    )
+    manual_projects_list = [
+        {
+            "name": p["name"],
+            "description": p["description"],
+            "tech": p["techStack"] or [],
+            "liveUrl": p["liveUrl"],
+            "repoUrl": p["repoUrl"],
+        }
+        for p in manual_projects
+    ]
+
+    # Merge: manual projects take priority, then GitHub projects as fallback
+    all_projects_for_ai = manual_projects_list if manual_projects_list else [
+        {"name": p.get("name", ""), "description": p.get("description", ""), "tech": p.get("languages", [])}
+        for p in github_projects[:5]
+    ]
 
     prompt = f"""
 You are generating a structured CV for a student. Return ONLY valid JSON with no extra text.
@@ -282,12 +304,16 @@ Fill in known values:
 Job: {job['title']} at {job['company']}
 Job requirements: {job['requirementsText'][:800]}
 Required skills: {job['requirementsTags']}
-Student top projects: {json.dumps(projects[:3])}
+
+Student's project pool (select the 3 most relevant to this job):
+{json.dumps(all_projects_for_ai, indent=2)}
+
 Known programming languages: {languages}
 LeetCode problems solved: {lc_solved}
 
 Rules:
-- Include 3 projects maximum, rewrite bullets to match JD keywords
+- SELECT exactly 3 projects from the pool above that best match the job requirements and tech stack
+- Rewrite project bullets to use JD keywords and strong action verbs
 - Each project needs 2-3 bullets starting with strong action verbs
 - Skills grouped by category, no duplicates across groups
 - Summary must mirror JD language and mention the target role
