@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useRef, useState, useEffect } from "react";
 
 type FeatureCardProps = {
   icon: React.ReactNode;
@@ -24,8 +24,19 @@ export default function FeatureCard({ icon, title, description, index }: Feature
     });
   };
 
-  const rotateX = isHovered ? ((mousePos.y / (cardRef.current?.offsetHeight ?? 1)) - 0.5) * -10 : 0;
-  const rotateY = isHovered ? ((mousePos.x / (cardRef.current?.offsetWidth ?? 1)) - 0.5) * 10 : 0;
+  const [cardSize, setCardSize] = useState({ width: 1, height: 1 });
+
+  useEffect(() => {
+    if (cardRef.current) {
+      setCardSize({
+        width: cardRef.current.offsetWidth || 1,
+        height: cardRef.current.offsetHeight || 1,
+      });
+    }
+  }, [isHovered]);
+
+  const rotateX = isHovered ? ((mousePos.y / cardSize.height) - 0.5) * -10 : 0;
+  const rotateY = isHovered ? ((mousePos.x / cardSize.width) - 0.5) * 10 : 0;
 
   return (
     <motion.div

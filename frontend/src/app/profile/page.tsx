@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession, signIn as nextAuthSignIn } from "next-auth/react";
 import axios from "axios";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { z } from "zod";
@@ -93,11 +93,19 @@ function SyncButton({
   isPending: boolean;
   onSync: () => void;
 }) {
-  const cooled = lastSyncedAt
-    ? Date.now() - new Date(lastSyncedAt).getTime() < SYNC_COOLDOWN_MS
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNow(Date.now());
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const cooled = (lastSyncedAt && now)
+    ? now - new Date(lastSyncedAt).getTime() < SYNC_COOLDOWN_MS
     : false;
-  const hrsLeft = cooled && lastSyncedAt
-    ? Math.ceil((SYNC_COOLDOWN_MS - (Date.now() - new Date(lastSyncedAt).getTime())) / 3_600_000)
+  const hrsLeft = (cooled && lastSyncedAt && now)
+    ? Math.ceil((SYNC_COOLDOWN_MS - (now - new Date(lastSyncedAt).getTime())) / 3_600_000)
     : 0;
 
   return (

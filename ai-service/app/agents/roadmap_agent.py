@@ -111,6 +111,18 @@ Rules:
 - Mix of BUILD (project), SOLVE (algorithm/system design), COMMUNICATE (tech spec/RFC) types
 - Order from foundational to advanced
 - Must be completable in 5-25 hours each
+- CRITICAL: "description" MUST follow this exact Markdown structure:
+  ### 🎯 Mission Objective
+  [1 paragraph summarizing the goal]
+  ### 🧠 Core Concepts
+  [Bullet points of what they must understand]
+  ### 🏗️ Architecture / Design Notes
+  [Brief technical constraints or patterns to use]
+  ### 🛠️ Step-by-Step Implementation Guide
+  1. [Action 1]
+  2. [Action 2]
+  ### ✅ Expected Deliverables
+  [What exactly should be submitted/completed]
 
 Return JSON:
 {{
@@ -192,14 +204,15 @@ Your goal is to provide resources that ACTUALLY level up a developer. DO NOT pro
 Instead, provide:
 1. High-quality engineering blogs (e.g., Cloudflare, Uber, Netflix tech blogs)
 2. Official advanced documentation or architectural deep-dives
-3. High-quality GitHub repositories or reputable system design case studies
-4. O'Reilly book chapters or advanced conference talks (e.g., StrangeLoop, InfoQ)
+3. High-quality GitHub repositories or case studies
+4. Advanced technical videos or conference talks (e.g., StrangeLoop, InfoQ, highly-rated senior developer channels)
 
 Mission Details:
 Title: {mission['title']}
 Description: {mission['description']}
 
-Return EXACTLY 3 world-class resources as a JSON array:
+Return EXACTLY 3 world-class resources as a JSON array. 
+CRITICAL RULE: You MUST ensure that AT LEAST ONE resource is a "video" and AT LEAST ONE is an "article" or "docs".
 [{{"title": "...", "url": "https://...", "type": "article|video|course|docs|repo"}}]
 
 Only return real, existing URLs. They must be directly actionable for this mission!""",
