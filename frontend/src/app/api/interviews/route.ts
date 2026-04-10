@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { missionId, type, scheduledAt } = await req.json();
+  const { missionId, type, scheduledAt, jobId, company, role } = await req.json();
 
   const profile = await prisma.studentProfile.findUnique({
     where: { userId: session.user.id },
@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
       custom: {
         interviewId: interview.id,
         interviewType: type ?? "TECHNICAL",
+        jobId: jobId ?? null,
+        company: company ?? null,
+        role: role ?? null,
       },
       settings_override: {
         transcription: {
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
   await streamVideo.upsertUsers([
     {
       id: "ai-interviewer",
-      name: "AI Interviewer",
+      name: company ? `${company} Interviewer` : "AI Interviewer",
       role: "user",
     },
   ]);
