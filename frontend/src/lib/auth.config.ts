@@ -5,7 +5,7 @@ import LinkedIn from "next-auth/providers/linkedin";
 
 const providers: NextAuthConfig["providers"] = [];
 const linkedInScope =
-  process.env.AUTH_LINKEDIN_SCOPE?.trim() || "openid profile email";
+  process.env.AUTH_LINKEDIN_SCOPE?.trim() || "r_liteprofile r_emailaddress";
 
 if (process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
   providers.push(

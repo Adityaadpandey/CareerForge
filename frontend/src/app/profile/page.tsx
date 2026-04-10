@@ -197,10 +197,10 @@ export default function ProfilePage() {
   });
 
   const syncMutation = useMutation({
-    mutationFn: (platform: string) =>
-      axios.post("/api/profile/sync", { platform }),
-    onSuccess: (_, platform) => {
-      toast.success(`${PLATFORM_LABELS[platform]} sync queued`);
+    mutationFn: (payload: { platform: string; leetcodeHandle?: string; codeforcesHandle?: string }) =>
+      axios.post("/api/profile/sync", payload),
+    onSuccess: (_, payload) => {
+      toast.success(`${PLATFORM_LABELS[payload.platform]} sync queued`);
       qc.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (err: unknown) => {
@@ -592,7 +592,13 @@ export default function ProfilePage() {
                       <SyncButton
                         lastSyncedAt={conn?.lastSyncedAt ?? null}
                         isPending={syncMutation.isPending}
-                        onSync={() => syncMutation.mutate(platform)}
+                        onSync={() =>
+                          syncMutation.mutate({
+                            platform,
+                            leetcodeHandle: profile?.leetcodeHandle ?? undefined,
+                            codeforcesHandle: profile?.codeforcesHandle ?? undefined,
+                          })
+                        }
                       />
                     )}
                   </div>

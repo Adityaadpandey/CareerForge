@@ -59,7 +59,7 @@ export async function enqueueIngestion(data: IngestionJob) {
   // Deterministic jobId prevents duplicate jobs for the same student+platform.
   // BullMQ silently ignores add() calls when a job with the same ID already
   // exists in waiting/active/delayed state.
-  const jobId = `${data.type}:${data.studentProfileId}`;
+  const jobId = `${data.type}__${data.studentProfileId}`;
   return getQueue(QUEUES.INGESTION).add(data.type, data, {
     jobId,
     attempts: 3,
@@ -69,7 +69,7 @@ export async function enqueueIngestion(data: IngestionJob) {
 
 export async function enqueueAnalysis(data: AnalysisJob) {
   // Same dedup for analysis jobs
-  const jobId = `${data.type}:${data.studentProfileId}`;
+  const jobId = `${data.type}__${data.studentProfileId}`;
   return getQueue(QUEUES.ANALYSIS).add(data.type, data, {
     jobId,
     attempts: 3,

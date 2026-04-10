@@ -15,9 +15,14 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { platform } = await req.json() as { platform?: string };
+  const body = await req.json() as {
+    platform?: string;
+    leetcodeHandle?: string;
+    codeforcesHandle?: string;
+  };
+  const { platform } = body;
   if (!platform) return NextResponse.json({ error: "platform required" }, { status: 400 });
-  const requestedPlatform = platform.toUpperCase();
+  const requestedPlatform = platform.trim().toUpperCase();
 
   const profile = await prisma.studentProfile.findUnique({
     where: { userId: session.user.id },
@@ -30,6 +35,25 @@ export async function POST(req: NextRequest) {
     },
   });
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+  const requestLeetcode = body.leetcodeHandle?.trim() || null;
+  const requestCodeforces = body.codeforcesHandle?.trim() || null;
+  const effectiveLeetcode = requestLeetcode || profile.leetcodeHandle || null;
+  const effectiveCodeforces = requestCodeforces || profile.codeforcesHandle || null;
+
+  // Persist newly supplied handles so subsequent syncs work from DB state.
+  if (
+    (requestLeetcode && requestLeetcode !== profile.leetcodeHandle) ||
+    (requestCodeforces && requestCodeforces !== profile.codeforcesHandle)
+  ) {
+    await prisma.studentProfile.update({
+      where: { id: profile.id },
+      data: {
+        leetcodeHandle: requestLeetcode ?? profile.leetcodeHandle ?? undefined,
+        codeforcesHandle: requestCodeforces ?? profile.codeforcesHandle ?? undefined,
+      },
+    });
+  }
 
   // Check existing connection and cooldown
   const conn = await prisma.platformConnection.findUnique({
@@ -67,21 +91,21 @@ export async function POST(req: NextRequest) {
   let directTimeout = 120_000;
   try {
     if (requestedPlatform === "GITHUB" && profile.githubUsername) {
-      await enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: profile.githubUsername });
       directPath = "/ingest/github";
       directPayload = { student_profile_id: profile.id, username: profile.githubUsername };
       directTimeout = 600_000;
+      await enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: profile.githubUsername });
       queued = true;
-    } else if (requestedPlatform === "LEETCODE" && profile.leetcodeHandle) {
-      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.leetcodeHandle });
+    } else if (requestedPlatform === "LEETCODE" && effectiveLeetcode) {
       directPath = "/ingest/leetcode";
-      directPayload = { student_profile_id: profile.id, handle: profile.leetcodeHandle };
+      directPayload = { student_profile_id: profile.id, handle: effectiveLeetcode };
+      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: effectiveLeetcode });
       queued = true;
-    } else if (requestedPlatform === "CODEFORCES" && profile.codeforcesHandle) {
+    } else if (requestedPlatform === "CODEFORCES" && effectiveCodeforces) {
       // Codeforces is handled under LEETCODE type in the worker for now
-      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.codeforcesHandle });
       directPath = "/ingest/leetcode";
-      directPayload = { student_profile_id: profile.id, handle: profile.codeforcesHandle };
+      directPayload = { student_profile_id: profile.id, handle: effectiveCodeforces };
+      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: effectiveCodeforces });
       queued = true;
     } else if (requestedPlatform === "LINKEDIN") {
       // Try OAuth account first
@@ -90,11 +114,6 @@ export async function POST(req: NextRequest) {
         select: { access_token: true, providerAccountId: true },
       });
       if (linkedinAccount?.access_token) {
-        await enqueueIngestion({
-          type: "LINKEDIN",
-          studentProfileId: profile.id,
-          oauth_data: { access_token: linkedinAccount.access_token, provider_account_id: linkedinAccount.providerAccountId },
-        });
         directPath = "/ingest/linkedin";
         directPayload = {
           student_profile_id: profile.id,
@@ -103,11 +122,16 @@ export async function POST(req: NextRequest) {
             provider_account_id: linkedinAccount.providerAccountId,
           },
         };
+        await enqueueIngestion({
+          type: "LINKEDIN",
+          studentProfileId: profile.id,
+          oauth_data: { access_token: linkedinAccount.access_token, provider_account_id: linkedinAccount.providerAccountId },
+        });
         queued = true;
       } else if (profile.linkedinUrl) {
-        await enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl: profile.linkedinUrl });
         directPath = "/ingest/linkedin";
         directPayload = { student_profile_id: profile.id, linkedin_url: profile.linkedinUrl };
+        await enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl: profile.linkedinUrl });
         queued = true;
       }
     }
