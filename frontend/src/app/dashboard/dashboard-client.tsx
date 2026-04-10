@@ -108,6 +108,10 @@ type LCData = {
   handle?: string;
 };
 
+function cn(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
 const shellClass =
   "rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(19,19,20,0.96),rgba(11,11,12,0.98))] shadow-[0_18px_70px_rgba(0,0,0,0.32)]";
 const cardClass =
@@ -151,16 +155,8 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-/* ── Shared Style Tokens ──────────────────────────────────────────────── */
-
-const CARD =
-  "relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-[#151518] to-[#0e0e10] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3)]";
-
 const CARD_INNER =
   "rounded-xl border border-white/[0.05] bg-white/[0.02] p-4";
-
-const EYEBROW =
-  "text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500";
 
 const TYPE_COLORS: Record<string, { border: string; bg: string; text: string; glow: string }> = {
   BUILD:       { border: "border-orange-500/20", bg: "bg-orange-500/10", text: "text-orange-400", glow: "shadow-orange-500/20" },
@@ -175,77 +171,34 @@ const STATUS_CONFIG: Record<string, { border: string; bg: string; text: string; 
   LOCKED:      { border: "border-white/[0.06]",   bg: "bg-white/[0.03]",   text: "text-zinc-600",    icon: Lock },
 };
 
-/* ── Animated Score Ring (SVG) ─────────────────────────────────────────── */
-
-function ScoreRing({ score, size = 140 }: { score: number; size?: number }) {
-  const r = (size - 16) / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (score / 100) * circumference;
-
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="score-ring-svg -rotate-90">
-        {/* Track */}
-        <circle
-          cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={10}
-        />
-        {/* Glow layer */}
-        <circle
-          cx={size / 2} cy={size / 2} r={r}
-          fill="none"
-          stroke="rgba(249,115,22,0.15)"
-          strokeWidth={18}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="score-ring-progress"
-          style={{ filter: "blur(6px)" }}
-        />
-        {/* Progress */}
-        <circle
-          cx={size / 2} cy={size / 2} r={r}
-          fill="none"
-          stroke="url(#scoreGradient)"
-          strokeWidth={8}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="score-ring-progress"
-        />
-        <defs>
-          <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f97316" />
-            <stop offset="100%" stopColor="#fbbf24" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold tracking-tight text-white">{Math.round(score)}</span>
-        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Score</span>
-      </div>
-    </div>
-  );
-}
-
 /* ── Stat Card ─────────────────────────────────────────────────────────── */
 
 function StatCard({
   label,
   value,
   hint,
-  accent,
+  icon: Icon,
+  gradient,
 }: {
   label: string;
   value: string | number;
   hint: string;
-  accent: string;
+  icon: React.ElementType;
+  gradient: string;
 }) {
   return (
-    <div className={cn(cardClass, "p-4")}>
-      <div className={sectionEyebrow}>{label}</div>
-      <div className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</div>
-      <div className={cn("mt-2 text-sm", accent)}>{hint}</div>
+    <div className={cn(cardClass, "relative overflow-hidden")}>
+      <div className={`absolute inset-0 rounded-[1.6rem] ${gradient}`} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between">
+          <div className={sectionEyebrow}>{label}</div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04] text-zinc-500">
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        </div>
+        <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</div>
+        <div className="mt-1.5 text-xs text-zinc-500">{hint}</div>
+      </div>
     </div>
   );
 }
@@ -339,6 +292,7 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
               </div>
             )}
           </div>
+        </div>
 
         {pillars.length > 0 && (
           <div className="grid gap-4 md:grid-cols-2">
@@ -349,7 +303,7 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
                   <span className="font-medium text-white">{Math.round(pillar.value)}</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
-                  <div className={cn("h-full rounded-full", pillar.tone)} style={{ width: `${pillar.value}%` }} />
+                  <div className="h-full rounded-full" style={{ width: `${pillar.value}%`, backgroundColor: pillar.color }} />
                 </div>
               </div>
             ))}
@@ -373,7 +327,6 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
             </div>
           </div>
         )}
-      </div>
     </section>
   );
 }
@@ -450,7 +403,6 @@ function MissionsPanel({ missions, className }: { missions: Mission[]; className
             </div>
           )}
         </div>
-      </div>
     </section>
   );
 }
@@ -542,7 +494,6 @@ function JobMatchesPanel({ jobMatches, className }: { jobMatches: JobMatch[]; cl
             </button>
           </div>
         </div>
-      </div>
     </section>
   );
 }
@@ -606,7 +557,6 @@ function GitHubCard({ conn, className }: { conn: Connection | undefined; classNa
             </>
           )}
         </div>
-      </div>
     </section>
   );
 }
@@ -681,7 +631,6 @@ function LeetCodeCard({ conn, className }: { conn: Connection | undefined; class
             </>
           )}
         </div>
-      </div>
     </section>
   );
 }
@@ -711,16 +660,8 @@ function StreakCard({ streakDays }: { streakDays: number }) {
 
         {/* Contribution grid */}
         <div className="mt-4 grid grid-cols-7 gap-[5px]">
-          {squares.map((type, i) => (
-            <div
-              key={i}
-              className={cn(
-                "aspect-square rounded-[4px] transition-colors duration-200",
-                type === "active" && "bg-orange-400 shadow-sm shadow-orange-400/20",
-                type === "warm" && "bg-orange-500/25",
-                type === "cold" && "bg-white/[0.04]",
-              )}
-            />
+          {squares.map((cls, i) => (
+            <div key={i} className={`aspect-square rounded-[4px] transition-colors duration-200 ${cls}`} />
           ))}
         </div>
 
@@ -734,7 +675,6 @@ function StreakCard({ streakDays }: { streakDays: number }) {
             <div className="text-[10px] text-zinc-600 mt-0.5 uppercase tracking-wide">Best</div>
           </div>
         </div>
-      </div>
     </section>
   );
 }
@@ -752,36 +692,17 @@ function WeakTopicsPanel({ weakTopics }: { weakTopics: string[] }) {
         <span className="text-sm text-orange-300">Fix these first</span>
       </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item, i) => (
-            <div
-              key={`${item.time}-${i}`}
-              className={cn(CARD_INNER, "flex gap-3 transition-colors hover:bg-white/[0.04]")}
-            >
-              <div
-                className="mt-1.5 h-2 w-2 shrink-0 rounded-full ring-2 ring-offset-1"
-                style={{
-                  background: item.dot,
-                  ringColor: `${item.dot}33`,
-                  // @ts-expect-error custom property for ring glow
-                  "--tw-ring-offset-color": "transparent",
-                  "--tw-ring-color": `${item.dot}33`,
-                }}
-              />
-              <div className="min-w-0 flex-1">
-                <div
-                  className="text-sm leading-relaxed text-zinc-400"
-                  dangerouslySetInnerHTML={{
-                    __html: item.html
-                      .replace(/<b>/g, '<span class="font-medium text-zinc-200">')
-                      .replace(/<\/b>/g, "</span>"),
-                  }}
-                />
-                {item.time && <div className="mt-1 text-[10px] text-zinc-600">{item.time}</div>}
-              </div>
+      <div className="mt-4 space-y-2.5">
+        {topics.map((topic) => {
+          const meta = TOPIC_META[topic] ?? { color: "#71717a", score: 50 };
+          return (
+            <div key={topic} className={cn(CARD_INNER, "flex items-center gap-3")}>
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+              <span className="text-sm text-zinc-300 flex-1">{topic}</span>
+              <span className="text-xs font-mono" style={{ color: meta.color }}>{meta.score}%</span>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -1068,7 +989,8 @@ export function DashboardClient(initialData: Props) {
                 label={stat.label}
                 value={stat.value}
                 hint={stat.hint}
-                accent={stat.accent}
+                icon={stat.icon}
+                gradient={stat.gradient}
               />
             ))}
           </div>
