@@ -245,17 +245,17 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
         </div>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
-        <div className="flex items-center gap-5">
+      <div className="mt-8 flex flex-col gap-6">
+        <div className="flex flex-wrap items-center gap-5">
           {readiness ? (
             <ScoreRing score={readiness.total} />
           ) : (
-            <div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-4xl text-zinc-600">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border border-white/8 bg-zinc-900 text-4xl text-zinc-600">
               —
             </div>
           )}
 
-          <div>
+          <div className="flex-1">
             {readiness ? (
               <>
                 <div className="text-4xl font-semibold tracking-[-0.06em] text-white">{Math.round(readiness.total)}</div>
@@ -278,7 +278,7 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
                 </div>
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
                   <Target className="h-3.5 w-3.5" />
-                  {readiness.total >= 75 ? "On track for stronger interviews" : "Needs more prep before top roles"}
+                  {readiness.total >= 75 ? "On track" : "Needs prep"}
                 </div>
               </>
             ) : (
@@ -290,14 +290,14 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
         </div>
 
         {pillars.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             {pillars.map((pillar) => (
-              <div key={pillar.label} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <div className="mb-3 flex items-center justify-between text-sm">
+              <div key={pillar.label} className="rounded-2xl border border-white/8 bg-black/20 p-3">
+                <div className="mb-3 flex items-center justify-between text-xs">
                   <span className="text-zinc-300">{pillar.label}</span>
                   <span className="font-medium text-white">{Math.round(pillar.value)}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+                <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
                   <div className="h-full rounded-full" style={{ width: `${pillar.value}%`, backgroundColor: pillar.color }} />
                 </div>
               </div>
@@ -305,23 +305,6 @@ function ReadinessCard({ readiness, className }: { readiness: Readiness | null; 
           </div>
         )}
       </div>
-
-        {/* Weak Topics inline */}
-        {readiness && readiness.weakTopics.length > 0 && (
-          <div className="mt-5 border-t border-white/[0.05] pt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">Focus areas</span>
-              {readiness.weakTopics.slice(0, 5).map((topic) => (
-                <span
-                  key={topic}
-                  className="rounded-full border border-rose-500/15 bg-rose-500/[0.06] px-2.5 py-1 text-[11px] font-medium text-rose-300/80"
-                >
-                  {topic}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
     </section>
   );
 }

@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
 
   const { platform } = await req.json() as { platform?: string };
   if (!platform) return NextResponse.json({ error: "platform required" }, { status: 400 });
+  const requestedPlatform = platform.toUpperCase();
 
   const profile = await prisma.studentProfile.findUnique({
     where: { userId: session.user.id },
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // Check existing connection and cooldown
   const conn = await prisma.platformConnection.findUnique({
-    where: { studentProfileId_platform: { studentProfileId: profile.id, platform: platform as P } },
+    where: { studentProfileId_platform: { studentProfileId: profile.id, platform: requestedPlatform as P } },
     select: { syncStatus: true, lastSyncedAt: true },
   });
 
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
 
   // Upsert connection to PENDING
   await prisma.platformConnection.upsert({
-    where: { studentProfileId_platform: { studentProfileId: profile.id, platform: platform as P } },
-    create: { studentProfileId: profile.id, platform: platform as P, syncStatus: "PENDING" },
+    where: { studentProfileId_platform: { studentProfileId: profile.id, platform: requestedPlatform as P } },
+    create: { studentProfileId: profile.id, platform: requestedPlatform as P, syncStatus: "PENDING" },
     update: { syncStatus: "PENDING", errorMessage: null },
   });
 
@@ -64,71 +65,81 @@ export async function POST(req: NextRequest) {
   let directPath: string | null = null;
   let directPayload: Record<string, unknown> | null = null;
   let directTimeout = 120_000;
-  if (platform === "GITHUB" && profile.githubUsername) {
-    await enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: profile.githubUsername });
-    directPath = "/ingest/github";
-    directPayload = { student_profile_id: profile.id, username: profile.githubUsername };
-    directTimeout = 600_000;
-    queued = true;
-  } else if (platform === "LEETCODE" && profile.leetcodeHandle) {
-    await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.leetcodeHandle });
-    directPath = "/ingest/leetcode";
-    directPayload = { student_profile_id: profile.id, handle: profile.leetcodeHandle };
-    queued = true;
-  } else if (platform === "CODEFORCES" && profile.codeforcesHandle) {
-    // Codeforces is handled under LEETCODE type in the worker for now
-    await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.codeforcesHandle });
-    directPath = "/ingest/leetcode";
-    directPayload = { student_profile_id: profile.id, handle: profile.codeforcesHandle };
-    queued = true;
-  } else if (platform === "LINKEDIN") {
-    // Try OAuth account first
-    const linkedinAccount = await prisma.account.findFirst({
-      where: { userId: session.user.id, provider: "linkedin" },
-      select: { access_token: true, providerAccountId: true },
-    });
-    if (linkedinAccount?.access_token) {
-      await enqueueIngestion({
-        type: "LINKEDIN",
-        studentProfileId: profile.id,
-        oauth_data: { access_token: linkedinAccount.access_token, provider_account_id: linkedinAccount.providerAccountId },
+  try {
+    if (requestedPlatform === "GITHUB" && profile.githubUsername) {
+      await enqueueIngestion({ type: "GITHUB", studentProfileId: profile.id, username: profile.githubUsername });
+      directPath = "/ingest/github";
+      directPayload = { student_profile_id: profile.id, username: profile.githubUsername };
+      directTimeout = 600_000;
+      queued = true;
+    } else if (requestedPlatform === "LEETCODE" && profile.leetcodeHandle) {
+      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.leetcodeHandle });
+      directPath = "/ingest/leetcode";
+      directPayload = { student_profile_id: profile.id, handle: profile.leetcodeHandle };
+      queued = true;
+    } else if (requestedPlatform === "CODEFORCES" && profile.codeforcesHandle) {
+      // Codeforces is handled under LEETCODE type in the worker for now
+      await enqueueIngestion({ type: "LEETCODE", studentProfileId: profile.id, handle: profile.codeforcesHandle });
+      directPath = "/ingest/leetcode";
+      directPayload = { student_profile_id: profile.id, handle: profile.codeforcesHandle };
+      queued = true;
+    } else if (requestedPlatform === "LINKEDIN") {
+      // Try OAuth account first
+      const linkedinAccount = await prisma.account.findFirst({
+        where: { userId: session.user.id, provider: "linkedin" },
+        select: { access_token: true, providerAccountId: true },
       });
-      directPath = "/ingest/linkedin";
-      directPayload = {
-        student_profile_id: profile.id,
-        oauth_data: {
-          access_token: linkedinAccount.access_token,
-          provider_account_id: linkedinAccount.providerAccountId,
-        },
-      };
-      queued = true;
-    } else if (profile.linkedinUrl) {
-      await enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl: profile.linkedinUrl });
-      directPath = "/ingest/linkedin";
-      directPayload = { student_profile_id: profile.id, linkedin_url: profile.linkedinUrl };
-      queued = true;
+      if (linkedinAccount?.access_token) {
+        await enqueueIngestion({
+          type: "LINKEDIN",
+          studentProfileId: profile.id,
+          oauth_data: { access_token: linkedinAccount.access_token, provider_account_id: linkedinAccount.providerAccountId },
+        });
+        directPath = "/ingest/linkedin";
+        directPayload = {
+          student_profile_id: profile.id,
+          oauth_data: {
+            access_token: linkedinAccount.access_token,
+            provider_account_id: linkedinAccount.providerAccountId,
+          },
+        };
+        queued = true;
+      } else if (profile.linkedinUrl) {
+        await enqueueIngestion({ type: "LINKEDIN", studentProfileId: profile.id, linkedinUrl: profile.linkedinUrl });
+        directPath = "/ingest/linkedin";
+        directPayload = { student_profile_id: profile.id, linkedin_url: profile.linkedinUrl };
+        queued = true;
+      }
     }
+  } catch (err) {
+    console.warn(`[profile/sync] queue enqueue failed for ${requestedPlatform}:`, err);
   }
 
-  if (!queued) {
+  const hasDirectFallback = !!(directPath && directPayload);
+
+  if (!queued && !hasDirectFallback) {
     // Revert — nothing to sync
     await prisma.platformConnection.update({
-      where: { studentProfileId_platform: { studentProfileId: profile.id, platform: platform as P } },
+      where: { studentProfileId_platform: { studentProfileId: profile.id, platform: requestedPlatform as P } },
       data: { syncStatus: "FAILED", errorMessage: "No credentials configured for this platform" },
     });
     return NextResponse.json({ error: "No credentials configured for this platform" }, { status: 400 });
   }
 
-  // Increment pending counter for pipeline trigger
-  await redis.incr(`pending_ingestion:${profile.id}`);
-  await redis.expire(`pending_ingestion:${profile.id}`, 3600);
+  // Increment pending counter for pipeline trigger (best-effort)
+  try {
+    await redis.incr(`pending_ingestion:${profile.id}`);
+    await redis.expire(`pending_ingestion:${profile.id}`, 3600);
+  } catch (err) {
+    console.warn(`[profile/sync] redis counter update failed for ${requestedPlatform}:`, err);
+  }
 
   // Local-dev reliability: process ingestion even when BullMQ workers are not running.
   if (DIRECT_IN_DEV && directPath && directPayload) {
     void aiClient.post(directPath, directPayload, { timeout: directTimeout }).catch((err: unknown) => {
-      console.warn(`[profile/sync] direct ${platform} ingest failed:`, err);
+      console.warn(`[profile/sync] direct ${requestedPlatform} ingest failed:`, err);
     });
   }
 
-  return NextResponse.json({ queued: true });
+  return NextResponse.json({ queued: queued || hasDirectFallback });
 }
